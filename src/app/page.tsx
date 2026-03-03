@@ -1,9 +1,15 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Hero } from "@/components/landing/Hero";
-import { HowItWorks } from "@/components/landing/HowItWorks";
-import { DownloadCta } from "@/components/landing/DownloadCta";
+import { Header } from "@/components/landing/Header";
+import { ParallaxBackground } from "@/components/landing/ParallaxBackground";
+import { BarbershopSlider } from "@/components/landing/BarbershopSlider";
+import { AboutSection } from "@/components/landing/AboutSection";
+import { MastersSection } from "@/components/landing/MastersSection";
+import { GallerySection } from "@/components/landing/GallerySection";
+// import { DownloadCta } from "@/components/landing/DownloadCta";
+import { ReviewsSlider } from "@/components/landing/ReviewsSlider";
+import { ReviewCtaSection } from "@/components/landing/ReviewCtaSection";
 import { Footer } from "@/components/landing/Footer";
 import { BookingModal } from "@/components/booking/BookingModal";
 
@@ -17,19 +23,30 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
+    <div className="relative z-10 min-h-screen">
+      <ParallaxBackground />
       {toast && (
         <div
-          className="fixed left-1/2 top-6 z-[60] -translate-x-1/2 rounded-xl bg-[var(--accent)] px-6 py-3 text-center font-medium text-black shadow-lg"
+          className="fixed left-1/2 top-24 z-[60] -translate-x-1/2 rounded-xl bg-[var(--accent)] px-6 py-3 text-center font-medium text-black shadow-lg"
           role="status"
         >
           {toast}
         </div>
       )}
-      <Hero onBookClick={() => setModalOpen(true)} />
-      <HowItWorks />
-      <DownloadCta />
-      <Footer />
+      <Header onBookClick={() => setModalOpen(true)} />
+      <main className="pt-16 sm:pt-[72px]">
+        <div className="container-landing space-y-8 pb-10 pt-6 md:space-y-10 md:pb-12 md:pt-8 lg:space-y-12 lg:pb-14">
+          <BarbershopSlider />
+          <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-2 md:gap-10 lg:gap-12">
+            <AboutSection />
+            <MastersSection />
+          </div>
+          <GallerySection />
+          <ReviewsSlider />
+          <ReviewCtaSection />
+        </div>
+        <Footer />
+      </main>
       <BookingModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

@@ -1,27 +1,34 @@
 "use client";
 
 import { useState } from "react";
+import { IMaskInput } from "react-imask";
 
 interface FormStepProps {
   onSubmit: (data: { clientName: string; clientPhone: string; comment: string }) => void;
   isSubmitting: boolean;
 }
 
+const PHONE_MASK = "+{7} (000) 000-00-00";
+
 export function FormStep({ onSubmit, isSubmitting }: FormStepProps) {
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneUnmasked, setPhoneUnmasked] = useState("");
   const [comment, setComment] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim().length < 2) return;
-    if (phone.trim().length < 10) return;
+    if (phoneUnmasked.length < 10) return;
+    const digits = phoneUnmasked.replace(/\D/g, "");
+    const clientPhone = digits.length === 10 ? "7" + digits : digits;
     onSubmit({
       clientName: name.trim(),
-      clientPhone: phone.trim(),
+      clientPhone,
       comment: comment.trim(),
     });
   };
+
+  const phoneValid = phoneUnmasked.length >= 10;
 
   return (
     <div className="space-y-4">
@@ -41,14 +48,15 @@ export function FormStep({ onSubmit, isSubmitting }: FormStepProps) {
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-[var(--text-muted)]">Телефон</span>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+          <IMaskInput
+            mask={PHONE_MASK}
+            unmask
+            defaultValue="+7 ("
+            onAccept={(value) => setPhoneUnmasked(String(value ?? ""))}
             placeholder="+7 (999) 123-45-67"
+            type="tel"
             className="w-full rounded-xl border border-[var(--surface)] bg-[var(--bg)] px-4 py-3 text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none"
             required
-            minLength={10}
           />
         </label>
         <label className="block">
@@ -63,8 +71,8 @@ export function FormStep({ onSubmit, isSubmitting }: FormStepProps) {
         </label>
         <button
           type="submit"
-          disabled={isSubmitting || name.trim().length < 2 || phone.trim().length < 10}
-          className="mt-2 rounded-xl bg-[var(--accent)] px-4 py-3 font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50"
+          disabled={isSubmitting || name.trim().length < 2 || !phoneValid}
+          className="mt-2 cursor-pointer rounded-xl bg-[var(--accent)] px-4 py-3 font-semibold text-black transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "Отправка…" : "Записаться"}
         </button>

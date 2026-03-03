@@ -51,7 +51,7 @@ export function Hero({ onBookClick }: HeroProps) {
         ref={ctaRef}
         type="button"
         onClick={onBookClick}
-        className="mt-10 rounded-xl bg-[var(--accent)] px-8 py-4 text-lg font-semibold text-black transition-opacity hover:opacity-90"
+        className="mt-10 cursor-pointer rounded-xl bg-[var(--accent)] px-8 py-4 text-lg font-semibold text-black transition-opacity hover:opacity-90"
       >
         Записаться
       </button>

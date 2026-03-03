@@ -18,7 +18,7 @@ export function MasterStep({ masters, selectedId, onSelect }: MasterStepProps) {
             <button
               type="button"
               onClick={() => onSelect(m)}
-              className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+              className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
                 selectedId === m.id
                   ? "border-[var(--accent)] bg-[var(--accent)]/20 text-[var(--text)]"
                   : "border-[var(--surface)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--accent)]/50"

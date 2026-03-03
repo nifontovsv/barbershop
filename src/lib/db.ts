@@ -2,8 +2,10 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
-const SLOT_START_HOUR = 10;
-const SLOT_END_HOUR = 18;
+// График: Пн–Пт 12:00–21:00 (интервал 1 ч), в 22:00 закрыты. Часы — по времени салона (Москва).
+const SLOT_START_HOUR = 12;
+const SLOT_END_HOUR = 22; // последний слот 21:00–22:00
+const SALON_UTC_OFFSET_HOURS = 3; // Europe/Moscow
 
 const dbDir = path.join(process.cwd(), "data");
 const dbPath = process.env.DATABASE_PATH || path.join(dbDir, "barbershop.db");
@@ -64,10 +66,22 @@ if (serviceCount.n === 0) {
   const insertService = db.prepare(
     "INSERT INTO services (id, name, durationMinutes, price, sortOrder) VALUES (?, ?, ?, ?, ?)"
   );
-  insertService.run("1", "Мужская стрижка", 45, 800, 1);
-  insertService.run("2", "Стрижка бороды", 30, 500, 2);
-  insertService.run("3", "Детская стрижка", 30, 600, 3);
-  insertService.run("4", "Стрижка + борода", 60, 1200, 4);
+  // Мужская стрижка
+  insertService.run("1", "Стрижка", 45, 2500, 1);
+  insertService.run("2", "Удлиненная стрижка", 60, 3000, 2);
+  insertService.run("3", "Стрижка+моделирование бороды", 60, 3700, 3);
+  insertService.run("4", "Стрижка+бритьё лица", 60, 3700, 4);
+  insertService.run("5", "Стрижка машинкой", 30, 2000, 5);
+  insertService.run("6", "Моделирование бороды", 30, 1700, 6);
+  insertService.run("7", "Укладка", 15, 1000, 7);
+  // Камуфляж седины
+  insertService.run("8", "Камуфляж стрижки", 45, 1600, 8);
+  insertService.run("9", "Камуфляж бороды", 30, 1100, 9);
+  // Чистое бритьё
+  insertService.run("10", "Бритьё головы", 45, 2500, 10);
+  insertService.run("11", "Бритьё лица", 30, 2000, 11);
+  // Уход
+  insertService.run("12", "Воск", 15, 600, 12);
 }
 
 // Seed masters
@@ -76,19 +90,17 @@ if (masterCount.n === 0) {
   const insertMaster = db.prepare(
     "INSERT INTO masters (id, name, specialty, rating, phone) VALUES (?, ?, ?, ?, ?)"
   );
-  insertMaster.run("1", "Алексей", "Мужские стрижки", 4.9, "+79001234567");
-  insertMaster.run("2", "Дмитрий", "Борода и усы", 4.8, "+79001234568");
-  insertMaster.run("3", "Максим", "Детские стрижки", 4.7, "+79001234569");
+  insertMaster.run("1", "Марат", "Мужские стрижки, борода", 5.0, "+79001234567");
+  insertMaster.run("2", "Владимир", "Стрижки, бритьё", 5.0, "+79001234568");
 
   const linkMasterService = db.prepare(
     "INSERT INTO master_services (masterId, serviceId) VALUES (?, ?)"
   );
-  linkMasterService.run("1", "1");
-  linkMasterService.run("1", "4");
-  linkMasterService.run("2", "2");
-  linkMasterService.run("2", "4");
-  linkMasterService.run("3", "3");
-  linkMasterService.run("3", "1");
+  for (const masterId of ["1", "2"]) {
+    for (let s = 1; s <= 12; s++) {
+      linkMasterService.run(masterId, String(s));
+    }
+  }
 }
 
 export interface Service {
@@ -172,17 +184,16 @@ export function getMasterById(id: string): (Master & { pushToken?: string | null
 
 function parseSlotId(slotId: string): { masterId: string; slotStart: string; slotEnd: string } | null {
   const parts = slotId.split("-");
-  if (parts.length < 4) return null;
+  if (parts.length < 5) return null;
   const masterId = parts[0];
   const dateStr = parts.slice(1, 4).join("-");
   const hour = parseInt(parts[4], 10);
   if (isNaN(hour) || hour < SLOT_START_HOUR || hour >= SLOT_END_HOUR) return null;
-  const date = new Date(dateStr + "T00:00:00.000Z");
-  if (isNaN(date.getTime())) return null;
-  const start = new Date(date);
-  start.setUTCHours(hour, 0, 0, 0);
-  const end = new Date(date);
-  end.setUTCHours(hour + 1, 0, 0, 0);
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const start = new Date(Date.UTC(y, m - 1, d, hour - SALON_UTC_OFFSET_HOURS, 0, 0, 0));
+  const end = new Date(Date.UTC(y, m - 1, d, hour + 1 - SALON_UTC_OFFSET_HOURS, 0, 0, 0));
+  if (isNaN(start.getTime())) return null;
   return {
     masterId,
     slotStart: start.toISOString(),
@@ -193,15 +204,17 @@ function parseSlotId(slotId: string): { masterId: string; slotStart: string; slo
 export function getSlots(masterId: string, dateStr: string): TimeSlot[] | null {
   const master = getMasterById(masterId);
   if (!master) return null;
-  const date = new Date(dateStr + "T00:00:00.000Z");
-  if (isNaN(date.getTime())) return null;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  const noonUtc = new Date(Date.UTC(y, m - 1, d, 12 - SALON_UTC_OFFSET_HOURS, 0, 0, 0));
+  if (isNaN(noonUtc.getTime())) return null;
+  const day = noonUtc.getUTCDay();
+  if (day === 0 || day === 6) return [];
   const slots: TimeSlot[] = [];
   const dateOnly = dateStr;
   for (let h = SLOT_START_HOUR; h < SLOT_END_HOUR; h++) {
-    const start = new Date(date);
-    start.setUTCHours(h, 0, 0, 0);
-    const end = new Date(date);
-    end.setUTCHours(h + 1, 0, 0, 0);
+    const start = new Date(Date.UTC(y, m - 1, d, h - SALON_UTC_OFFSET_HOURS, 0, 0, 0));
+    const end = new Date(Date.UTC(y, m - 1, d, h + 1 - SALON_UTC_OFFSET_HOURS, 0, 0, 0));
     const slotId = `${masterId}-${dateOnly}-${String(h).padStart(2, "0")}`;
     const slotStart = start.toISOString();
     const slotEnd = end.toISOString();
