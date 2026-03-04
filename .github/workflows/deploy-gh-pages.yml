@@ -38,7 +38,7 @@ jobs:
       - name: Build
         env:
           STATIC_EXPORT: "1"
-          NEXT_PUBLIC_BASE_PATH: ""
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
         run: npm run build
 
       - name: Restore API routes
