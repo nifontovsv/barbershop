@@ -3,6 +3,7 @@
 import { useRef, useEffect } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { asset } from "@/lib/basePath";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -44,7 +45,7 @@ export function ParallaxBackground() {
         ref={layerRef}
         className="absolute -inset-[10%] bg-cover bg-center bg-no-repeat"
         style={{
-          backgroundImage: `url(${BG_IMAGE})`,
+          backgroundImage: `url(${asset(BG_IMAGE)})`,
         }}
       />
       {/* Лёгкий оверлей: мотоциклы видны, общий тон в духе #121212 */}

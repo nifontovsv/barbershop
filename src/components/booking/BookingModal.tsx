@@ -7,6 +7,7 @@ import { ServiceStep } from "./ServiceStep";
 import { MasterStep } from "./MasterStep";
 import { DateSlotStep } from "./DateSlotStep";
 import { FormStep } from "./FormStep";
+import { apiBase } from "@/lib/basePath";
 
 const STEPS = ["service", "master", "date", "form"] as const;
 type StepId = (typeof STEPS)[number];
@@ -77,7 +78,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
 
   useEffect(() => {
     if (!isOpen) return;
-    fetch("/api/services")
+    fetch(`${apiBase}/api/services`)
       .then((r) => r.json())
       .then(setServices)
       .catch(() => setError("Не удалось загрузить услуги"));
@@ -88,7 +89,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
       setMasters([]);
       return;
     }
-    fetch(`/api/masters?serviceId=${selectedServices[0].id}`)
+    fetch(`${apiBase}/api/masters?serviceId=${selectedServices[0].id}`)
       .then((r) => r.json())
       .then(setMasters)
       .catch(() => setError("Не удалось загрузить мастеров"));
@@ -97,7 +98,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
   const loadSlots = useCallback((masterId: string, dateStr: string) => {
     setLoadingSlots(true);
     setSlots([]);
-    fetch(`/api/masters/${masterId}/slots?date=${dateStr}`)
+    fetch(`${apiBase}/api/masters/${masterId}/slots?date=${dateStr}`)
       .then((r) => r.json())
       .then((data) => {
         setSlots(Array.isArray(data) ? data : []);
@@ -156,7 +157,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/bookings", {
+      const res = await fetch(`${apiBase}/api/bookings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

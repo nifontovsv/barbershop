@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
+import { asset } from "@/lib/basePath";
 
 interface HeaderProps {
   onBookClick: () => void;
@@ -10,9 +12,9 @@ export function Header({ onBookClick }: HeaderProps) {
   return (
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-[var(--surface)]/50 bg-[var(--bg)]/95 backdrop-blur-sm">
       <div className="container-landing flex h-16 items-center justify-between sm:h-[72px]">
-        <a href="/" className="flex shrink-0 items-center gap-3" aria-label="На главную">
+        <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="На главную">
           <Image
-            src="/logo.png"
+            src={asset("/logo.png")}
             alt=""
             width={48}
             height={48}
@@ -22,7 +24,7 @@ export function Header({ onBookClick }: HeaderProps) {
           <span className="hidden font-semibold tracking-tight text-[var(--text)] sm:block sm:text-lg">
             Мужская Парикмахерская
           </span>
-        </a>
+        </Link>
         <button
           type="button"
           onClick={onBookClick}

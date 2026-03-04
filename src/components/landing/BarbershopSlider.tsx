@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState, useEffect, useCallback } from "react";
+import { asset } from "@/lib/basePath";
 
 const SLIDES = Array.from({ length: 10 }, (_, i) => i + 1);
 const INTERVAL_MS = 5000;
@@ -33,7 +34,7 @@ export function BarbershopSlider() {
               }}
             >
               <Image
-                src={`/images/barbershop/${n}.webp`}
+                src={asset(`/images/barbershop/${n}.webp`)}
                 alt={`Парикмахерская — фото ${n}`}
                 fill
                 className="object-cover"

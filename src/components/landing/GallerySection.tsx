@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useRef, useEffect } from "react";
+import { asset } from "@/lib/basePath";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
@@ -63,7 +64,7 @@ export function GallerySection() {
             className="relative aspect-square overflow-hidden rounded-xl bg-[var(--surface)]"
           >
             <Image
-              src={`/images/clients/${n}.webp`}
+              src={asset(`/images/clients/${n}.webp`)}
               alt={`Работа мастеров ${n}`}
               fill
               className="object-cover"
@@ -77,7 +78,7 @@ export function GallerySection() {
             className="relative aspect-square overflow-hidden rounded-xl bg-[var(--surface)]"
           >
             <Image
-              src={`/images/products/${n}.webp`}
+              src={asset(`/images/products/${n}.webp`)}
               alt={`Товар ${n}`}
               fill
               className="object-cover"
