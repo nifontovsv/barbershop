@@ -1,4 +1,26 @@
-import type { Service, Master } from "@/types/booking";
+import type { Service, Master, TimeSlot } from "@/types/booking";
+
+/** Демо-слоты по графику Пн–Пт 12:00–22:00 (когда API недоступен) */
+export function getFallbackSlots(masterId: string, dateStr: string): TimeSlot[] {
+  const date = new Date(dateStr + "T00:00:00");
+  if (isNaN(date.getTime())) return [];
+  const slots: TimeSlot[] = [];
+  for (let hour = 12; hour < 22; hour++) {
+    const start = new Date(date);
+    start.setHours(hour, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(hour + 1, 0, 0, 0);
+    const id = `${masterId}-${dateStr}-${String(hour).padStart(2, "0")}`;
+    slots.push({
+      id,
+      masterId,
+      start: start.toISOString(),
+      end: end.toISOString(),
+      available: true,
+    });
+  }
+  return slots;
+}
 
 /** Статичные данные для модалки записи, когда API недоступен (например на GitHub Pages) */
 export const FALLBACK_SERVICES: Service[] = [

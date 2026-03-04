@@ -8,7 +8,7 @@ import { MasterStep } from "./MasterStep";
 import { DateSlotStep } from "./DateSlotStep";
 import { FormStep } from "./FormStep";
 import { apiBase } from "@/lib/basePath";
-import { FALLBACK_SERVICES, FALLBACK_MASTERS } from "@/data/fallbackBooking";
+import { FALLBACK_SERVICES, FALLBACK_MASTERS, getFallbackSlots } from "@/data/fallbackBooking";
 
 const STEPS = ["service", "master", "date", "form"] as const;
 type StepId = (typeof STEPS)[number];
@@ -106,11 +106,14 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
     setLoadingSlots(true);
     setSlots([]);
     fetch(`${apiBase}/api/masters/${masterId}/slots?date=${dateStr}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setSlots(Array.isArray(data) ? data : []);
+      .then((r) => {
+        if (!r.ok) return getFallbackSlots(masterId, dateStr);
+        return r.json().then((data) =>
+          Array.isArray(data) && data.length > 0 ? data : getFallbackSlots(masterId, dateStr)
+        );
       })
-      .catch(() => setSlots([]))
+      .then(setSlots)
+      .catch(() => setSlots(getFallbackSlots(masterId, dateStr)))
       .finally(() => setLoadingSlots(false));
   }, []);
 
@@ -273,14 +276,6 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
                 onSelectDate={handleSelectDate}
                 loading={loadingSlots}
               />
-              {selectedDate && !loadingSlots && slots.length === 0 && (
-                <p className="mt-4 rounded-xl border border-[var(--surface)] bg-[var(--surface)]/50 p-4 text-sm text-[var(--text-muted)]">
-                  Выбор времени онлайн недоступен. Запишитесь по телефону:{" "}
-                  <a href="tel:+79179359828" className="font-medium text-[var(--accent)] hover:underline">
-                    +7 (917) 935-98-28
-                  </a>
-                </p>
-              )}
               {selectedSlot && (
                 <div className="mt-4">
                   <button
