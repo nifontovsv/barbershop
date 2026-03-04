@@ -8,6 +8,7 @@ import { MasterStep } from "./MasterStep";
 import { DateSlotStep } from "./DateSlotStep";
 import { FormStep } from "./FormStep";
 import { apiBase } from "@/lib/basePath";
+import { FALLBACK_SERVICES, FALLBACK_MASTERS } from "@/data/fallbackBooking";
 
 const STEPS = ["service", "master", "date", "form"] as const;
 type StepId = (typeof STEPS)[number];
@@ -79,9 +80,12 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
   useEffect(() => {
     if (!isOpen) return;
     fetch(`${apiBase}/api/services`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) return FALLBACK_SERVICES;
+        return r.json().then((data) => (Array.isArray(data) ? data : FALLBACK_SERVICES));
+      })
       .then(setServices)
-      .catch(() => setError("Не удалось загрузить услуги"));
+      .catch(() => setServices(FALLBACK_SERVICES));
   }, [isOpen]);
 
   useEffect(() => {
@@ -90,9 +94,12 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
       return;
     }
     fetch(`${apiBase}/api/masters?serviceId=${selectedServices[0].id}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) return FALLBACK_MASTERS;
+        return r.json().then((data) => (Array.isArray(data) ? data : FALLBACK_MASTERS));
+      })
       .then(setMasters)
-      .catch(() => setError("Не удалось загрузить мастеров"));
+      .catch(() => setMasters(FALLBACK_MASTERS));
   }, [isOpen, selectedServices]);
 
   const loadSlots = useCallback((masterId: string, dateStr: string) => {
@@ -266,6 +273,14 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
                 onSelectDate={handleSelectDate}
                 loading={loadingSlots}
               />
+              {selectedDate && !loadingSlots && slots.length === 0 && (
+                <p className="mt-4 rounded-xl border border-[var(--surface)] bg-[var(--surface)]/50 p-4 text-sm text-[var(--text-muted)]">
+                  Выбор времени онлайн недоступен. Запишитесь по телефону:{" "}
+                  <a href="tel:+79179359828" className="font-medium text-[var(--accent)] hover:underline">
+                    +7 (917) 935-98-28
+                  </a>
+                </p>
+              )}
               {selectedSlot && (
                 <div className="mt-4">
                   <button
