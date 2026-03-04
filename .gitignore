@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# CI temp (API routes moved during GH Pages build)
+.api-routes-backup
+
 # database
 /data/*.db
 /data/*.db-wal
