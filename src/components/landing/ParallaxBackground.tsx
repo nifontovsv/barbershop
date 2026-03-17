@@ -7,7 +7,7 @@ import { asset } from '@/lib/basePath'
 
 gsap.registerPlugin(ScrollTrigger)
 
-// Фон: фото (параллакс)
+// Фон: фото (параллакс только на десктопе — на мобилке прыгает)
 const BG_IMAGE = '/images/parallax/parallax-bikes.jpg'
 
 export function ParallaxBackground() {
@@ -20,15 +20,20 @@ export function ParallaxBackground() {
 		if (!layer || !wrap) return
 
 		const ctx = gsap.context(() => {
-			gsap.to(layer, {
-				yPercent: -18,
-				ease: 'none',
-				scrollTrigger: {
-					trigger: document.body,
-					start: 'top top',
-					end: 'bottom bottom',
-					scrub: 1.2,
+			ScrollTrigger.matchMedia({
+				'(min-width: 768px)': () => {
+					gsap.to(layer, {
+						yPercent: -18,
+						ease: 'none',
+						scrollTrigger: {
+							trigger: document.body,
+							start: 'top top',
+							end: 'bottom bottom',
+							scrub: 1.2,
+						},
+					})
 				},
+				'(max-width: 767px)': () => {},
 			})
 		}, wrap)
 
