@@ -24,6 +24,7 @@ export function GallerySection() {
   const sectionRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const desktopScrollRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<GalleryTab>("design");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
@@ -76,6 +77,11 @@ export function GallerySection() {
       src: asset(`/images/clients/${n}.webp`),
       alt: `Клиент — фото ${n}`,
     }));
+  }, [tab]);
+
+  useEffect(() => {
+    gridRef.current?.scrollTo({ left: 0, behavior: "auto" });
+    desktopScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [tab]);
 
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
@@ -182,7 +188,10 @@ export function GallerySection() {
           </div>
 
           <div className="hidden grid-cols-4 gap-2 sm:grid sm:gap-3">
-            <div className="col-span-full max-h-[min(720px,70vh)] overflow-y-auto pr-1 scrollbar-theme">
+            <div
+              ref={desktopScrollRef}
+              className="col-span-full max-h-[min(720px,70vh)] overflow-y-auto pr-1 scrollbar-theme"
+            >
               <div className="grid grid-cols-4 gap-2 sm:gap-3">
                 {items.map((item, i) => (
                   <button

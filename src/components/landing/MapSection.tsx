@@ -4,10 +4,10 @@ import { useState } from 'react'
 
 const ADDRESS = 'ул. Мансура Хасанова, 15, Казань'
 const YANDEX_MAPS_PAGE_URL =
-	'https://yandex.ru/maps/org/muzhskaya_parikmakherskaya/74689483204/?ll=49.184657%2C55.778892&z=17'
+	'https://yandex.ru/maps/org/muzhskaya_parikmakherskaya/74689483204/?ll=49.184618%2C55.778553&z=18'
 
 const YANDEX_MAPS_EMBED_URL =
-	'https://yandex.ru/map-widget/v1/?ll=49.184657%2C55.778892&z=17&mode=search&text=%D1%83%D0%BB.%20%D0%9C%D0%B0%D0%BD%D1%81%D1%83%D1%80%D0%B0%20%D0%A5%D0%B0%D1%81%D0%B0%D0%BD%D0%BE%D0%B2%D0%B0%2C%2015%2C%20%D0%9A%D0%B0%D0%B7%D0%B0%D0%BD%D1%8C'
+	'https://yandex.ru/map-widget/v1/?ll=49.18451%2C55.77860&z=18&pt=49.18451%2C55.77860%2Cpm2rdm'
 
 export function MapSection() {
 	const [mapInteractive, setMapInteractive] = useState(false)

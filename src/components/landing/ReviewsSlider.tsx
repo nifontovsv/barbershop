@@ -860,7 +860,7 @@ const STEP_SCROLL = CARD_MIN_WIDTH + CARD_GAP
 
 function ReviewCard({ review }: { review: Review }) {
 	return (
-		<article className='flex min-h-[220px] min-w-[calc(100vw-4rem)] max-w-[calc(100vw-4rem)] flex-shrink-0 snap-start rounded-2xl border border-[var(--surface)] bg-[var(--bg-content)] p-5 md:min-w-[320px] md:max-w-[320px] md:p-6'>
+		<article className='flex min-h-[260px] min-w-[calc(100vw-4rem)] max-w-[calc(100vw-4rem)] flex-shrink-0 snap-start rounded-2xl border border-[var(--surface)] bg-[var(--bg-content)] p-5 md:min-h-[220px] md:min-w-[320px] md:max-w-[320px] md:p-6'>
 			<div className='flex min-h-0 flex-1 flex-col'>
 				{/* Верхняя строка: имя слева, звёзды справа */}
 				<div className='mb-3 flex items-start justify-between gap-2'>
@@ -878,7 +878,7 @@ function ReviewCard({ review }: { review: Review }) {
 					</span>
 				</div>
 				{/* Текст отзыва — фиксированная высота (как 5 строк), скролл при длинном тексте */}
-				<div className='scrollbar-theme max-h-[7.5rem] overflow-y-auto pr-1'>
+				<div className='scrollbar-theme max-h-[9rem] overflow-y-auto pr-1 md:max-h-[7.5rem]'>
 					<p className='text-sm leading-relaxed text-[var(--text)] md:text-base'>
 						«{review.text}»
 					</p>
