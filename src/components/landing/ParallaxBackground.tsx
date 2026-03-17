@@ -23,6 +23,7 @@ export function ParallaxBackground() {
 			ScrollTrigger.matchMedia({
 				'(min-width: 768px)': () => {
 					gsap.to(layer, {
+						x: 0,
 						yPercent: -18,
 						ease: 'none',
 						scrollTrigger: {
@@ -48,7 +49,7 @@ export function ParallaxBackground() {
 		>
 			<div
 				ref={layerRef}
-				className='absolute left-0 right-0 top-[4%] bottom-[-6%] bg-cover bg-center bg-no-repeat'
+				className='absolute left-0 top-[4%] bottom-[-6%] w-full bg-cover bg-center bg-no-repeat'
 				style={{
 					backgroundImage: `url(${asset(BG_IMAGE)})`,
 				}}
