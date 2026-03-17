@@ -936,7 +936,7 @@ export function ReviewsSlider() {
 	return (
 		<section ref={sectionRef} className='scroll-section'>
 			<div className='mx-auto max-w-2xl rounded-2xl bg-[var(--bg)]/90 px-4 py-6 shadow-xl backdrop-blur-sm'>
-				<h2 className='text-center text-2xl font-semibold text-[var(--text)] md:text-3xl'>
+				<h2 className='section-title'>
 					Отзывы клиентов
 				</h2>
 				<p className='mx-auto mt-2 max-w-xl text-center text-sm text-[var(--text-muted)]'>

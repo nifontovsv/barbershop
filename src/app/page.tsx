@@ -10,6 +10,7 @@ import { GallerySection } from "@/components/landing/GallerySection";
 // import { DownloadCta } from "@/components/landing/DownloadCta";
 import { ReviewsSlider } from "@/components/landing/ReviewsSlider";
 import { ReviewCtaSection } from "@/components/landing/ReviewCtaSection";
+import { MapSection } from "@/components/landing/MapSection";
 import { Footer } from "@/components/landing/Footer";
 import { BookingModal } from "@/components/booking/BookingModal";
 
@@ -37,13 +38,12 @@ export default function Home() {
       <main className="pt-16 sm:pt-[72px]">
         <div className="container-landing space-y-8 pb-10 pt-6 md:space-y-10 md:pb-12 md:pt-8 lg:space-y-12 lg:pb-14">
           <BarbershopSlider />
-          <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-2 md:gap-10 lg:gap-12">
-            <AboutSection />
-            <MastersSection />
-          </div>
+          <AboutSection />
+          <MastersSection />
           <GallerySection />
           <ReviewsSlider />
           <ReviewCtaSection />
+          <MapSection />
         </div>
         <Footer />
       </main>

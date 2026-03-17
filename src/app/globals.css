@@ -10,7 +10,7 @@
   --text: #ffffff;
   --text-muted: #888888;
   --text-secondary: #aaaaaa;
-  --container-px: 1.5rem; /* 24px на узких экранах */
+  --container-px: 0.75rem; /* 12px на узких экранах */
   color-scheme: dark;
 }
 
@@ -46,6 +46,15 @@ body {
   margin-right: auto;
   padding-left: var(--container-px);
   padding-right: var(--container-px);
+}
+
+@layer components {
+  .section-title {
+    @apply text-center text-3xl font-semibold leading-tight text-[var(--text)] sm:text-3xl;
+  }
+  .section-subtitle {
+    @apply mt-2 text-center text-sm text-white/80 sm:text-base;
+  }
 }
 
 @keyframes btn-glow {

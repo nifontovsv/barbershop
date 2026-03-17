@@ -4,6 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { asset } from "@/lib/basePath";
 
+const PHONE = "+79179359828";
+const PHONE_DISPLAY = "+7 (917) 935-98-28";
+
 interface HeaderProps {
   onBookClick: () => void;
 }
@@ -25,13 +28,21 @@ export function Header({ onBookClick }: HeaderProps) {
             Мужская Парикмахерская
           </span>
         </Link>
-        <button
-          type="button"
-          onClick={onBookClick}
-          className="animate-btn-glow relative cursor-pointer rounded-xl bg-[var(--accent)] px-5 py-2.5 text-base font-semibold text-black shadow-[0_2px_12px_rgba(201,162,39,0.35)] transition-[transform,box-shadow,filter] duration-300 ease-out hover:scale-105 hover:brightness-110 hover:shadow-[0_6px_24px_rgba(201,162,39,0.55)] active:scale-[0.98] active:shadow-[0_1px_6px_rgba(201,162,39,0.3)]"
-        >
-          Записаться
-        </button>
+        <div className="flex items-center gap-4">
+          <a
+            href={`tel:${PHONE}`}
+            className="text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--accent)] hover:underline sm:text-base"
+          >
+            {PHONE_DISPLAY}
+          </a>
+          <button
+            type="button"
+            onClick={onBookClick}
+            className="animate-btn-glow relative cursor-pointer rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-black shadow-[0_2px_12px_rgba(201,162,39,0.35)] transition-[transform,box-shadow,filter] duration-300 ease-out hover:scale-105 hover:brightness-110 hover:shadow-[0_6px_24px_rgba(201,162,39,0.55)] active:scale-[0.98] active:shadow-[0_1px_6px_rgba(201,162,39,0.3)] sm:px-5 sm:py-2.5 sm:text-base"
+          >
+            Записаться
+          </button>
+        </div>
       </div>
     </header>
   );
