@@ -58,8 +58,8 @@ export function DateSlotStep({
 	onSelectDate,
 	loading,
 }: DateSlotStepProps) {
-	const today = useMemo(() => new Date(), [])
-	const todayStr = toDateStr(today)
+	/** Только календарная дата (YYYY-MM-DD), без времени — иначе «сегодня» ошибочно < текущего момента */
+	const todayStr = useMemo(() => toDateStr(new Date()), [])
 
 	const [viewDate, setViewDate] = useState(() => {
 		const d = new Date()
@@ -93,8 +93,8 @@ export function DateSlotStep({
 	}
 
 	const isPast = (day: number) => {
-		const d = new Date(viewYear, viewMonth, day)
-		return d < today || toDateStr(d) < todayStr
+		const dateStr = toDateStr(new Date(viewYear, viewMonth, day))
+		return dateStr < todayStr
 	}
 
 	const isWeekend = (day: number) => {

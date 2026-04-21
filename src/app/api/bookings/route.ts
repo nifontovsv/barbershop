@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createBooking } from "@/lib/booking";
+import { emitBookingsChanged } from "@/lib/adminBookingsRealtime";
 
 export async function POST(request: Request) {
   try {
@@ -63,6 +64,8 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
+
+    emitBookingsChanged("booking_created");
 
     return NextResponse.json(booking, { status: 201 });
   } catch (err) {

@@ -1,52 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import type { Service } from "@/types/booking";
-
-const SERVICE_CATEGORIES: { title: string; itemNames: string[] }[] = [
-  {
-    title: "Мужская стрижка",
-    itemNames: [
-      "Стрижка",
-      "Удлинённая стрижка",
-      "Стрижка + моделирование бороды",
-      "Стрижка + бритьё лица",
-      "Стрижка машинкой",
-      "Моделирование бороды",
-      "Укладка",
-    ],
-  },
-  {
-    title: "Камуфляж седины",
-    itemNames: ["Камуфляж стрижки", "Камуфляж бороды"],
-  },
-  {
-    title: "Чистое бритьё",
-    itemNames: ["Бритьё головы", "Бритьё лица"],
-  },
-  {
-    title: "Уход",
-    itemNames: ["Воск"],
-  },
-];
+import type { Service, ServiceCategory } from "@/types/booking";
 
 interface ServiceStepProps {
+  categories: ServiceCategory[];
   services: Service[];
   selectedIds: string[];
   onToggle: (service: Service) => void;
-}
-
-function groupServicesByCategory(
-  services: Service[],
-  categories: { title: string; itemNames: string[] }[]
-): { title: string; services: Service[] }[] {
-  const byName = new Map(services.map((s) => [s.name, s]));
-  return categories.map((cat) => ({
-    title: cat.title,
-    services: cat.itemNames
-      .map((name) => byName.get(name))
-      .filter((s): s is Service => s != null),
-  }));
 }
 
 function ChevronIcon({ open }: { open: boolean }) {
@@ -76,29 +37,44 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-export function ServiceStep({ services, selectedIds, onToggle }: ServiceStepProps) {
+export function ServiceStep({ categories, services, selectedIds, onToggle }: ServiceStepProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
-  const rawGroups = groupServicesByCategory(services, SERVICE_CATEGORIES);
-  const uncategorized = services.filter(
-    (s) => !SERVICE_CATEGORIES.some((cat) => cat.itemNames.includes(s.name))
-  );
-  const groups =
-    rawGroups.length > 0 && uncategorized.length > 0
-      ? [
-          { title: rawGroups[0].title, services: [...rawGroups[0].services, ...uncategorized] },
-          ...rawGroups.slice(1),
-        ]
-      : rawGroups;
+
+  const sortedCats = [...categories].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+
+  const groups: { key: string; title: string; list: Service[] }[] = [];
+
+  if (sortedCats.length > 0) {
+    for (const cat of sortedCats) {
+      const list = services
+        .filter((s) => s.categoryId === cat.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+      if (list.length > 0) {
+        groups.push({ key: cat.id, title: cat.name, list });
+      }
+    }
+  }
+
+  const inAny = new Set(groups.flatMap((g) => g.list.map((s) => s.id)));
+  const rest = services
+    .filter((s) => !inAny.has(s.id))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  if (rest.length > 0) {
+    groups.push({
+      key: "_other",
+      title: sortedCats.length > 0 ? "Без категории" : "Услуги",
+      list: rest,
+    });
+  }
 
   return (
     <div className="space-y-2">
       <h3 className="text-lg font-semibold text-[var(--text)]">Выберите услуги</h3>
       {groups.map((group, index) => {
-        if (group.services.length === 0) return null;
         const isOpen = openIndex === index;
         return (
           <div
-            key={group.title}
+            key={group.key}
             className="overflow-hidden rounded-xl border border-[var(--surface)] bg-[var(--surface)]"
           >
             <button
@@ -116,7 +92,7 @@ export function ServiceStep({ services, selectedIds, onToggle }: ServiceStepProp
             >
               <div className="min-h-0 overflow-hidden">
                 <ul className="grid gap-1 border-t border-[var(--surface)] p-2">
-                  {group.services.map((s) => {
+                  {group.list.map((s) => {
                     const checked = selectedIds.includes(s.id);
                     return (
                       <li key={s.id}>
@@ -133,9 +109,7 @@ export function ServiceStep({ services, selectedIds, onToggle }: ServiceStepProp
                             onChange={() => onToggle(s)}
                             className="checkbox-accent"
                           />
-                          <span className="flex-1 text-sm font-medium text-[var(--text)]">
-                            {s.name}
-                          </span>
+                          <span className="flex-1 text-sm font-medium text-[var(--text)]">{s.name}</span>
                           <span className="text-xs text-[var(--text-muted)]">
                             {s.durationMinutes} мин
                             {s.price != null ? ` · ${s.price.toLocaleString("ru-RU")} ₽` : ""}

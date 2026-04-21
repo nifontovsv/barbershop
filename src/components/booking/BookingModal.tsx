@@ -2,13 +2,18 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import gsap from "gsap";
-import type { Service, Master, TimeSlot } from "@/types/booking";
+import type { Service, ServiceCategory, Master, TimeSlot } from "@/types/booking";
 import { ServiceStep } from "./ServiceStep";
 import { MasterStep } from "./MasterStep";
 import { DateSlotStep } from "./DateSlotStep";
 import { FormStep } from "./FormStep";
 import { apiBase } from "@/lib/basePath";
-import { FALLBACK_SERVICES, FALLBACK_MASTERS, getFallbackSlots } from "@/data/fallbackBooking";
+import {
+  FALLBACK_SERVICES,
+  FALLBACK_SERVICE_CATEGORIES,
+  FALLBACK_MASTERS,
+  getFallbackSlots,
+} from "@/data/fallbackBooking";
 
 const STEPS = ["service", "master", "date", "form"] as const;
 type StepId = (typeof STEPS)[number];
@@ -22,6 +27,7 @@ interface BookingModalProps {
 export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) {
   const [step, setStep] = useState<StepId>("service");
   const [services, setServices] = useState<Service[]>([]);
+  const [serviceCategories, setServiceCategories] = useState<ServiceCategory[]>([]);
   const [masters, setMasters] = useState<Master[]>([]);
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -35,6 +41,8 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
   const overlayRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [exiting, setExiting] = useState(false);
+  /** Сбросить шаг и выбор после успешной записи, когда модалка уже закрыта (без мигания UI). */
+  const pendingResetAfterCloseRef = useRef(false);
 
   useEffect(() => {
     if (!overlayRef.current || !contentRef.current) return;
@@ -59,6 +67,18 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
     document.body.style.overflow = "";
   }, [isOpen, exiting]);
 
+  useEffect(() => {
+    if (isOpen || !pendingResetAfterCloseRef.current) return;
+    pendingResetAfterCloseRef.current = false;
+    setStep("service");
+    setSelectedServices([]);
+    setSelectedMaster(null);
+    setSelectedDate(null);
+    setSelectedSlot(null);
+    setError(null);
+    setSlots([]);
+  }, [isOpen]);
+
   const handleClose = useCallback(() => {
     if (!overlayRef.current || !contentRef.current) {
       onClose();
@@ -81,11 +101,24 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
     if (!isOpen) return;
     fetch(`${apiBase}/api/services`)
       .then((r) => {
-        if (!r.ok) return FALLBACK_SERVICES;
-        return r.json().then((data) => (Array.isArray(data) ? data : FALLBACK_SERVICES));
+        if (!r.ok) throw new Error("bad");
+        return r.json() as Promise<{ categories?: ServiceCategory[]; services?: Service[] } | Service[]>;
       })
-      .then(setServices)
-      .catch(() => setServices(FALLBACK_SERVICES));
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setServiceCategories(FALLBACK_SERVICE_CATEGORIES);
+          setServices(data.length ? data : FALLBACK_SERVICES);
+          return;
+        }
+        const cats = data.categories?.length ? data.categories : FALLBACK_SERVICE_CATEGORIES;
+        const sv = data.services?.length ? data.services : FALLBACK_SERVICES;
+        setServiceCategories(cats);
+        setServices(sv);
+      })
+      .catch(() => {
+        setServiceCategories(FALLBACK_SERVICE_CATEGORIES);
+        setServices(FALLBACK_SERVICES);
+      });
   }, [isOpen]);
 
   useEffect(() => {
@@ -184,6 +217,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
         setError(json.message || "Ошибка записи");
         return;
       }
+      pendingResetAfterCloseRef.current = true;
       onSuccess();
       onClose();
     } catch {
@@ -254,6 +288,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
         <div className="scrollbar-theme min-h-0 flex-1 overflow-y-auto p-6 pt-4">
           {step === "service" && (
             <ServiceStep
+              categories={serviceCategories}
               services={services}
               selectedIds={selectedServices.map((s) => s.id)}
               onToggle={handleToggleService}

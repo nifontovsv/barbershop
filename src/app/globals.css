@@ -38,6 +38,22 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Курсор для интерактивных кнопок по всему приложению */
+@layer base {
+  button:not(:disabled),
+  input[type="button"]:not(:disabled),
+  input[type="submit"]:not(:disabled),
+  input[type="reset"]:not(:disabled) {
+    cursor: pointer;
+  }
+  button:disabled,
+  input[type="button"]:disabled,
+  input[type="submit"]:disabled,
+  input[type="reset"]:disabled {
+    cursor: not-allowed;
+  }
+}
+
 /* Общий контейнер лендинга: боковые отступы ~100px на десктопе, блоки на всю ширину */
 .container-landing {
   width: 100%;
@@ -75,6 +91,21 @@ body {
 
 .animate-btn-glow:hover {
   animation: none;
+}
+
+@keyframes admin-save-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-admin-save-toast {
+  animation: admin-save-toast 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 /* Чекбоксы под дизайн (акцент) */

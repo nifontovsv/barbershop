@@ -3,37 +3,50 @@
 import Image from "next/image";
 import Link from "next/link";
 import { asset } from "@/lib/basePath";
+import type { HeaderContent } from "@/lib/sitePublic";
 
-const PHONE = "+79179359828";
-const PHONE_DISPLAY = "+7 (917) 935-98-28";
-
-interface HeaderProps {
+interface HeaderProps extends Partial<HeaderContent> {
   onBookClick: () => void;
 }
 
-export function Header({ onBookClick }: HeaderProps) {
+const DEFAULT_LOGO = "/logo.png";
+const DEFAULT_TITLE = "Мужская Парикмахерская";
+const DEFAULT_TEL = "+79179359828";
+const DEFAULT_PHONE_DISPLAY = "+7 (917) 935-98-28";
+
+export function Header({
+  onBookClick,
+  logoPath = DEFAULT_LOGO,
+  title = DEFAULT_TITLE,
+  phoneTel = DEFAULT_TEL,
+  phoneDisplay = DEFAULT_PHONE_DISPLAY,
+}: HeaderProps) {
+  const logoSrc = asset(logoPath.startsWith("/") ? logoPath : `/${logoPath}`);
+
   return (
     <header className="fixed left-0 right-0 top-0 z-50 border-b border-[var(--surface)]/50 bg-[var(--bg)]/95 backdrop-blur-sm">
       <div className="container-landing flex h-16 items-center justify-between sm:h-[72px]">
-        <Link href="/" className="flex shrink-0 items-center gap-3" aria-label="На главную">
+        <Link href="/" className="flex min-w-0 shrink items-center gap-3" aria-label="На главную">
           <Image
-            src={asset("/logo.png")}
+            src={logoSrc}
             alt=""
             width={48}
             height={48}
-            className="h-10 w-10 object-contain sm:h-12 sm:w-12"
+            className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12"
             unoptimized
           />
-          <span className="hidden font-semibold tracking-tight text-[var(--text)] sm:block sm:text-lg">
-            Мужская Парикмахерская
-          </span>
+          {title ? (
+            <span className="hidden min-w-0 truncate font-semibold tracking-tight text-[var(--text)] sm:block sm:text-lg">
+              {title}
+            </span>
+          ) : null}
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-4">
           <a
-            href={`tel:${PHONE}`}
+            href={`tel:${phoneTel.replace(/\s/g, "")}`}
             className="text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--accent)] hover:underline sm:text-base"
           >
-            {PHONE_DISPLAY}
+            {phoneDisplay}
           </a>
           <button
             type="button"

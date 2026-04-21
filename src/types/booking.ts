@@ -1,9 +1,16 @@
+export interface ServiceCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
 export interface Service {
   id: string;
   name: string;
   durationMinutes: number;
   price: number | null;
   sortOrder: number;
+  categoryId: string | null;
 }
 
 export interface Master {

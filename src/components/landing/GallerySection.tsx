@@ -8,25 +8,59 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const DESIGN_IMAGES = Array.from({ length: 19 }, (_, i) => i + 1);
-const PRODUCT_IMAGES = Array.from({ length: 21 }, (_, i) => i + 1);
-const CLIENT_IMAGES = [1, 2, 3, 4, 5, 6, 7, 9];
+export type GalleryTab = "design" | "products" | "clients";
 
-type GalleryTab = "design" | "products" | "clients";
-
-const TABS: Array<{ id: GalleryTab; label: string; subtitle: string }> = [
+const DEFAULT_TABS: Array<{ id: GalleryTab; label: string; subtitle: string }> = [
   { id: "design", label: "Интерьер", subtitle: "Атмосфера и детали" },
   { id: "products", label: "Товары", subtitle: "Уход и стайлинг" },
   { id: "clients", label: "Клиенты", subtitle: "Наши работы" },
 ];
 
-export function GallerySection() {
+export type GalleryItem = { key: string; src: string; alt: string };
+
+function fallbackItems(tab: GalleryTab): GalleryItem[] {
+  if (tab === "design") {
+    return Array.from({ length: 19 }, (_, i) => i + 1).map((n) => ({
+      key: `design-${n}`,
+      src: asset(`/images/design/${n}.jpg`),
+      alt: `Интерьер — фото ${n}`,
+    }));
+  }
+  if (tab === "products") {
+    return Array.from({ length: 21 }, (_, i) => i + 1).map((n) => ({
+      key: `product-${n}`,
+      src: asset(`/images/products/${n}.jpg`),
+      alt: `Товар — фото ${n}`,
+    }));
+  }
+  return [1, 2, 3, 4, 5, 6, 7, 9].map((n) => ({
+    key: `client-${n}`,
+    src: asset(`/images/clients/${n}.webp`),
+    alt: `Клиент — фото ${n}`,
+  }));
+}
+
+export function GallerySection({
+  sectionTitle = "Галерея",
+  sectionSubtitle = "Интерьер, товары и наши клиенты — листайте и вдохновляйтесь.",
+  tabs = DEFAULT_TABS,
+  itemsByTab,
+}: {
+  sectionTitle?: string;
+  sectionSubtitle?: string;
+  tabs?: Array<{ id: GalleryTab; label: string; subtitle: string }>;
+  itemsByTab: Record<GalleryTab, GalleryItem[]>;
+}) {
   const sectionRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const desktopScrollRef = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<GalleryTab>("design");
+  const tabList = tabs.length ? tabs : DEFAULT_TABS;
+  const [tab, setTab] = useState<GalleryTab>(tabList[0]?.id ?? "design");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const activeTab: GalleryTab = tabList.some((t) => t.id === tab)
+    ? tab
+    : (tabList[0]?.id ?? "design");
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -58,31 +92,15 @@ export function GallerySection() {
   }, []);
 
   const items = useMemo(() => {
-    if (tab === "design") {
-      return DESIGN_IMAGES.map((n) => ({
-        key: `design-${n}`,
-        src: asset(`/images/design/${n}.jpg`),
-        alt: `Интерьер — фото ${n}`,
-      }));
-    }
-    if (tab === "products") {
-      return PRODUCT_IMAGES.map((n) => ({
-        key: `product-${n}`,
-        src: asset(`/images/products/${n}.jpg`),
-        alt: `Товар — фото ${n}`,
-      }));
-    }
-    return CLIENT_IMAGES.map((n) => ({
-      key: `client-${n}`,
-      src: asset(`/images/clients/${n}.webp`),
-      alt: `Клиент — фото ${n}`,
-    }));
-  }, [tab]);
+    const rows = itemsByTab[activeTab];
+    if (rows && rows.length > 0) return rows;
+    return fallbackItems(activeTab);
+  }, [activeTab, itemsByTab]);
 
   useEffect(() => {
     gridRef.current?.scrollTo({ left: 0, behavior: "auto" });
     desktopScrollRef.current?.scrollTo({ top: 0, behavior: "auto" });
-  }, [tab]);
+  }, [activeTab]);
 
   const closeLightbox = useCallback(() => setLightboxIndex(null), []);
   const goLightbox = useCallback(
@@ -128,18 +146,15 @@ export function GallerySection() {
     >
       <div className="container-landing py-5 sm:py-8">
         <div className="w-full rounded-2xl bg-[var(--bg)]/55 px-4 py-6 shadow-xl sm:px-7 sm:py-8">
-        <h2
-          ref={titleRef}
-          className="section-title"
-        >
-          Галерея
+        <h2 ref={titleRef} className="section-title">
+          {sectionTitle}
         </h2>
         <p className="mt-2 text-center text-sm text-[var(--text-muted)] sm:text-base">
-          Интерьер, товары и наши клиенты — листайте и вдохновляйтесь.
+          {sectionSubtitle}
         </p>
 
         <div className="mt-4 -mx-4 flex flex-nowrap items-stretch gap-2 overflow-x-auto px-4 pb-1 scrollbar-theme sm:mx-0 sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-0">
-          {TABS.map((t) => (
+          {tabList.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -148,11 +163,11 @@ export function GallerySection() {
                 setLightboxIndex(null);
               }}
               className={`group shrink-0 rounded-xl px-3 py-2 text-sm font-medium transition-colors sm:px-5 sm:py-2.5 sm:text-base ${
-                tab === t.id
+                activeTab === t.id
                   ? "bg-[var(--accent)] text-black"
                   : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--accent)] hover:text-black"
               }`}
-              aria-pressed={tab === t.id}
+              aria-pressed={activeTab === t.id}
             >
               <span className="block leading-tight">{t.label}</span>
               <span className="hidden">

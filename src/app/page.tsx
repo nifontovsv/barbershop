@@ -1,57 +1,70 @@
-"use client";
+import { getPublicSitePayload } from "@/lib/sitePublic";
+import { HomePage } from "@/components/landing/HomePage";
+import { asset } from "@/lib/basePath";
+import type { GalleryTab } from "@/components/landing/GallerySection";
+import type { LandingMaster } from "@/components/landing/MastersSection";
 
-import { useState, useCallback } from "react";
-import { Header } from "@/components/landing/Header";
-import { ParallaxBackground } from "@/components/landing/ParallaxBackground";
-import { BarbershopSlider } from "@/components/landing/BarbershopSlider";
-import { AboutSection } from "@/components/landing/AboutSection";
-import { MastersSection } from "@/components/landing/MastersSection";
-import { GallerySection } from "@/components/landing/GallerySection";
-// import { DownloadCta } from "@/components/landing/DownloadCta";
-import { ReviewsSlider } from "@/components/landing/ReviewsSlider";
-import { ReviewCtaSection } from "@/components/landing/ReviewCtaSection";
-import { MapSection } from "@/components/landing/MapSection";
-import { Footer } from "@/components/landing/Footer";
-import { BookingModal } from "@/components/booking/BookingModal";
+export const dynamic = "force-dynamic";
+
+function mediaPath(p: string) {
+  return p.startsWith("/") ? p : `/${p}`;
+}
 
 export default function Home() {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const site = getPublicSitePayload();
+  const heroSlides = site.hero.map((h, i) => ({
+    src: asset(mediaPath(h.path)),
+    alt: h.alt?.trim() || `Парикмахерская — фото ${i + 1}`,
+  }));
 
-  const showSuccess = useCallback(() => {
-    setToast("Запись отправлена");
-    setTimeout(() => setToast(null), 4000);
-  }, []);
+  const gv = site.kv.gallery_section;
+  const rawTabs = gv.tabs ?? [];
+  const galleryTabs: Array<{ id: GalleryTab; label: string; subtitle: string }> = [];
+  for (const t of rawTabs) {
+    if (t.id === "design" || t.id === "products" || t.id === "clients") {
+      galleryTabs.push({
+        id: t.id,
+        label: typeof t.label === "string" ? t.label : t.id,
+        subtitle: typeof t.subtitle === "string" ? t.subtitle : "",
+      });
+    }
+  }
+
+  const mapKind = (rows: typeof site.gallery_design) =>
+    rows.map((m) => ({
+      key: m.id,
+      src: asset(mediaPath(m.path)),
+      alt: m.alt?.trim() || "",
+    }));
+
+  const galleryItems: Record<GalleryTab, ReturnType<typeof mapKind>> = {
+    design: mapKind(site.gallery_design),
+    products: mapKind(site.gallery_products),
+    clients: mapKind(site.gallery_clients),
+  };
+
+  const masters: LandingMaster[] = site.masters.map((m) => ({
+    id: m.id,
+    name: m.name,
+    specialty: m.specialty,
+    rating: m.rating,
+    badges: m.badges,
+    description: m.bio ?? "",
+    photoPath: m.photoPath,
+  }));
 
   return (
-    <div className="relative z-10 min-h-screen">
-      <ParallaxBackground />
-      {toast && (
-        <div
-          className="fixed left-1/2 top-24 z-[60] -translate-x-1/2 rounded-xl bg-[var(--accent)] px-6 py-3 text-center font-medium text-black shadow-lg"
-          role="status"
-        >
-          {toast}
-        </div>
-      )}
-      <Header onBookClick={() => setModalOpen(true)} />
-      <main className="pt-16 sm:pt-[72px]">
-        <div className="container-landing space-y-8 pb-10 pt-6 md:space-y-10 md:pb-12 md:pt-8 lg:space-y-12 lg:pb-14">
-          <BarbershopSlider />
-          <AboutSection />
-          <MastersSection />
-          <GallerySection />
-          <ReviewsSlider />
-          <ReviewCtaSection />
-          <MapSection />
-        </div>
-        <Footer />
-      </main>
-      <BookingModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSuccess={showSuccess}
-      />
-    </div>
+    <HomePage
+      heroSlides={heroSlides}
+      parallaxBg={site.kv.parallax_bg}
+      header={site.kv.header}
+      about={site.kv.about}
+      footer={site.kv.footer}
+      mastersSection={site.kv.masters_section}
+      gallerySection={gv}
+      galleryTabs={galleryTabs}
+      galleryItems={galleryItems}
+      masters={masters}
+    />
   );
 }

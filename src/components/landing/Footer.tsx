@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 
-const ADDRESS = "ул. Мансура Хасанова, 15, Казань";
-const VK_GROUP_URL = "https://vk.ru/id897263128";
-const URL_2GIS = "https://2gis.ru/kazan/firm/70000001095119622";
-const URL_YANDEX_MAPS =
+const DEFAULT_BRAND = "Мужская Парикмахерская";
+const DEFAULT_ADDRESS = "ул. Мансура Хасанова, 15, Казань";
+const DEFAULT_VK = "https://vk.ru/id897263128";
+const DEFAULT_2GIS = "https://2gis.ru/kazan/firm/70000001095119622";
+const DEFAULT_YANDEX =
   "https://yandex.ru/maps/org/muzhskaya_parikmakherskaya/74689483204/?ll=49.184657%2C55.778892&z=17";
 
 function VkIcon({ className }: { className?: string }) {
@@ -24,12 +25,7 @@ function VkIcon({ className }: { className?: string }) {
 
 function YandexIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden>
       <text
         x="12"
         y="16"
@@ -47,12 +43,7 @@ function YandexIcon({ className }: { className?: string }) {
 
 function TwoGisIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      aria-hidden
-    >
+    <svg className={className} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden>
       <text
         x="12"
         y="15"
@@ -68,19 +59,37 @@ function TwoGisIcon({ className }: { className?: string }) {
   );
 }
 
-export function Footer() {
+export function Footer({
+  brandName,
+  address,
+  vkUrl,
+  url2gis,
+  urlYandexMaps,
+}: {
+  brandName?: string;
+  address?: string;
+  vkUrl?: string;
+  url2gis?: string;
+  urlYandexMaps?: string;
+}) {
+  const brand = brandName ?? DEFAULT_BRAND;
+  const addr = address ?? DEFAULT_ADDRESS;
+  const vk = vkUrl ?? DEFAULT_VK;
+  const gis = url2gis ?? DEFAULT_2GIS;
+  const yandex = urlYandexMaps ?? DEFAULT_YANDEX;
+
   return (
     <footer className="border-t border-[var(--surface)] bg-[var(--bg)]/85 py-6">
       <div className="container-landing">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
           <div className="text-center sm:text-left">
-            <div className="text-sm font-medium text-white/90">Мужская Парикмахерская</div>
-            <div className="mt-1 text-sm text-white/70">{ADDRESS}</div>
+            <div className="text-sm font-medium text-white/90">{brand}</div>
+            <div className="mt-1 text-sm text-white/70">{addr}</div>
           </div>
 
           <div className="flex items-center gap-2">
             <a
-              href={VK_GROUP_URL}
+              href={vk}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#0077FF] text-white transition-[transform,filter] hover:brightness-110 active:scale-[0.98]"
@@ -90,7 +99,7 @@ export function Footer() {
               <VkIcon className="h-5 w-5" />
             </a>
             <a
-              href={URL_YANDEX_MAPS}
+              href={yandex}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#FC3F1D] text-white transition-[transform,filter] hover:brightness-110 active:scale-[0.98]"
@@ -100,7 +109,7 @@ export function Footer() {
               <YandexIcon className="h-6 w-6" />
             </a>
             <a
-              href={URL_2GIS}
+              href={gis}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-[#29B24A] text-white transition-[transform,filter] hover:brightness-110 active:scale-[0.98]"
@@ -113,7 +122,9 @@ export function Footer() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-white/60 sm:justify-between">
-          <span>© {new Date().getFullYear()} Мужская Парикмахерская</span>
+          <span>
+            © {new Date().getFullYear()} {brand}
+          </span>
           <Link href="/privacy" className="hover:text-white/85 hover:underline">
             Политика конфиденциальности
           </Link>
