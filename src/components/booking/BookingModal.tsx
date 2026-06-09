@@ -194,6 +194,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
   const handleSubmitForm = async (data: {
     clientName: string;
     clientPhone: string;
+    clientEmail: string;
     comment: string;
   }) => {
     if (!selectedMaster || selectedServices.length === 0 || !selectedSlot) return;
@@ -209,6 +210,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
           slotId: selectedSlot.id,
           clientName: data.clientName,
           clientPhone: data.clientPhone,
+          clientEmail: data.clientEmail || undefined,
           comment: data.comment || undefined,
         }),
       });

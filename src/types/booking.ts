@@ -35,5 +35,6 @@ export interface BookingRequest {
   slotId: string;
   clientName: string;
   clientPhone: string;
+  clientEmail?: string;
   comment?: string;
 }

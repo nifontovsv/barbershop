@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/requireAdmin";
+import { requireTabSession } from "@/lib/requireAdmin";
 import { deleteMediaItem, updateMediaItem } from "@/lib/db";
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("content");
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const patch: { path?: string; sortOrder?: number; alt?: string | null } = {};
@@ -23,8 +23,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("content");
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   if (!deleteMediaItem(id)) {
     return NextResponse.json({ message: "Не найдено" }, { status: 404 });

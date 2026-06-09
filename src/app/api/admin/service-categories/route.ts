@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/requireAdmin";
+import { requireAdminSession, requireTabSession } from "@/lib/requireAdmin";
 import { insertServiceCategory, listServiceCategories } from "@/lib/db";
 
 export async function GET() {
@@ -9,8 +9,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("content");
+  if (!auth.ok) return auth.response;
   const body = await request.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim() : "";
   const sortOrder = typeof body.sortOrder === "number" && Number.isFinite(body.sortOrder) ? body.sortOrder : 0;

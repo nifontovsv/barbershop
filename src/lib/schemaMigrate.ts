@@ -1,4 +1,9 @@
 import type Database from "better-sqlite3";
+import {
+  permissionsFromLegacyRole,
+  serializeEmployeePermissions,
+} from "./adminPermissions";
+import { defaultSalonHours, SALON_HOURS_KV_KEY } from "./salonHours";
 
 /** Совпадает с логикой слотов в db.ts (Europe/Moscow) */
 const SALON_UTC_OFFSET_HOURS = 3;
@@ -186,8 +191,68 @@ export function runSchemaMigrations(db: Database.Database) {
   if (!bookingHasCol("masterComment")) {
     db.exec("ALTER TABLE bookings ADD COLUMN masterComment TEXT");
   }
+  if (!bookingHasCol("clientEmail")) {
+    db.exec("ALTER TABLE bookings ADD COLUMN clientEmail TEXT");
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS employees (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      login TEXT NOT NULL UNIQUE,
+      passwordHash TEXT,
+      masterId TEXT,
+      role TEXT NOT NULL DEFAULT 'master',
+      isActive INTEGER NOT NULL DEFAULT 1,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (masterId) REFERENCES masters(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_employees_master ON employees(masterId);
+  `);
+
+  const employeeCols = db.prepare("PRAGMA table_info(employees)").all() as { name: string }[];
+  const employeeHasCol = (n: string) => employeeCols.some((c) => c.name === n);
+  if (!employeeHasCol("permissions")) {
+    db.exec("ALTER TABLE employees ADD COLUMN permissions TEXT");
+    const rows = db.prepare("SELECT id, role FROM employees").all() as { id: string; role: string }[];
+    for (const row of rows) {
+      const perms = serializeEmployeePermissions(permissionsFromLegacyRole(row.role));
+      db.prepare("UPDATE employees SET permissions = ? WHERE id = ?").run(perms, row.id);
+    }
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS master_shifts (
+      id TEXT PRIMARY KEY,
+      masterId TEXT NOT NULL,
+      workDate TEXT NOT NULL,
+      startHour INTEGER NOT NULL,
+      endHourExclusive INTEGER NOT NULL,
+      isDayOff INTEGER NOT NULL DEFAULT 0,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (masterId) REFERENCES masters(id),
+      UNIQUE (masterId, workDate)
+    );
+    CREATE INDEX IF NOT EXISTS idx_master_shifts_date ON master_shifts(workDate);
+  `);
 
   migrateServiceCategoriesFromLegacy(db);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS master_breaks (
+      id TEXT PRIMARY KEY,
+      masterId TEXT NOT NULL,
+      workDate TEXT NOT NULL,
+      slotStart TEXT NOT NULL,
+      slotEnd TEXT NOT NULL,
+      durationMinutes INTEGER NOT NULL,
+      comment TEXT,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY (masterId) REFERENCES masters(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_master_breaks_date ON master_breaks(workDate);
+    CREATE INDEX IF NOT EXISTS idx_master_breaks_master_date ON master_breaks(masterId, workDate);
+  `);
 
   seedIfEmpty(db);
 }
@@ -236,6 +301,7 @@ function seedIfEmpty(db: Database.Database) {
   insertKv.run("gallery_section", JSON.stringify(defaultGallerySection()));
   insertKv.run("header", JSON.stringify(defaultHeader()));
   insertKv.run("parallax_bg", JSON.stringify(defaultParallaxBg()));
+  insertKv.run(SALON_HOURS_KV_KEY, JSON.stringify(defaultSalonHours()));
 
   seedMedia(db);
   seedDemoBookings(db);

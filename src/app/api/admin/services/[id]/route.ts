@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/requireAdmin";
+import { requireTabSession } from "@/lib/requireAdmin";
 import { deleteService, updateService } from "@/lib/db";
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("content");
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const patch: Parameters<typeof updateService>[1] = {};
@@ -28,8 +28,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("content");
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   const result = deleteService(id);
   if (!result.ok) {

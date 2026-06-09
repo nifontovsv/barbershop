@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/requireAdmin";
-import { addSlotBlock, ALL_MASTERS_BLOCK_ID, listSlotBlocks } from "@/lib/db";
+import { ALL_MASTERS_BLOCK_ID } from "@/lib/slotBlockConstants";
+import {
+  forbidden,
+  isEnvAdmin,
+  requireTabSession,
+  resolveSessionPermissions,
+} from "@/lib/requireAdmin";
+import { addSlotBlock, listSlotBlocks } from "@/lib/db";
 
 export async function GET(request: Request) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("slot_blocks");
+  if (!auth.ok) return auth.response;
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from") ?? undefined;
   const to = searchParams.get("to") ?? undefined;
@@ -15,23 +21,38 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("slot_blocks");
+  if (!auth.ok) return auth.response;
+  const session = auth.session;
+  const perms = resolveSessionPermissions(session);
   try {
     const body = await request.json();
     const masterIdRaw = body.masterId as string | undefined;
     const blockDate = body.blockDate as string | undefined;
     const note = typeof body.note === "string" ? body.note : undefined;
-    const masterId =
-      masterIdRaw === ALL_MASTERS_BLOCK_ID || masterIdRaw === "*"
-        ? ALL_MASTERS_BLOCK_ID
-        : masterIdRaw ?? "";
+
+    let masterId: string;
+    if (!isEnvAdmin(session) && perms.slotBlocksOwnOnly) {
+      if (!session.masterId) {
+        return NextResponse.json({ message: "У сотрудника не привязан мастер" }, { status: 403 });
+      }
+      masterId = session.masterId;
+    } else {
+      masterId =
+        masterIdRaw === ALL_MASTERS_BLOCK_ID || masterIdRaw === "*"
+          ? ALL_MASTERS_BLOCK_ID
+          : masterIdRaw ?? "";
+    }
 
     if (!masterId || !blockDate) {
       return NextResponse.json(
         { message: "Укажите masterId и blockDate (YYYY-MM-DD)" },
         { status: 400 }
       );
+    }
+
+    if (!isEnvAdmin(session) && masterId === ALL_MASTERS_BLOCK_ID) {
+      return forbidden("Можно блокировать слоты только для себя");
     }
 
     const hoursRaw = body.hours;

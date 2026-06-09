@@ -15,7 +15,7 @@ export function AdminHeader() {
   }, [router]);
 
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-white/10 bg-[var(--bg)]/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg)]/80">
+    <header className="sticky top-0 z-20 shrink-0 flex items-center justify-between border-b border-white/10 bg-[var(--bg)]/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg)]/80">
       <Link href="/admin" className="font-semibold tracking-tight text-[var(--accent)]">
         Админ-панель
       </Link>

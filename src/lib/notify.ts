@@ -130,7 +130,7 @@ type SmsRuSendJson = {
   sms?: Record<string, SmsRuSmsEntry>;
 };
 
-async function sendSms(phone: string, text: string): Promise<void> {
+export async function sendSms(phone: string, text: string): Promise<void> {
   const apiId = process.env.SMS_API_ID;
   if (!apiId) return;
   // SMS.ru: https://sms.ru/api — при json=1 ошибка по номеру в sms[номер].status, не только в корне
@@ -166,4 +166,79 @@ async function sendSms(phone: string, text: string): Promise<void> {
   if (byPhone?.sms_id) {
     console.log(`[Notify] SMS queued, id=${byPhone.sms_id}`);
   }
+}
+
+export function isSmtpConfigured(): boolean {
+  return Boolean(process.env.SMTP_HOST?.trim() && process.env.SMTP_USER?.trim() && process.env.SMTP_PASS?.trim());
+}
+
+export async function sendEmail(to: string, subject: string, text: string): Promise<void> {
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
+  const from = process.env.SMTP_FROM?.trim() || user;
+  if (!host || !user || !pass || !from) {
+    console.log(`[Notify] Email skipped (SMTP not configured): to=${to}`);
+    return;
+  }
+  const nodemailer = await import("nodemailer");
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = process.env.SMTP_SECURE === "1" || port === 465;
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+  await transporter.sendMail({ from, to, subject, text });
+}
+
+export interface BulkNotifyResult {
+  sms: { sent: number; failed: string[] };
+  email: { sent: number; failed: string[] };
+}
+
+export async function sendBulkClientNotifications(input: {
+  phones: string[];
+  emails: string[];
+  message: string;
+  sendSms: boolean;
+  sendEmail: boolean;
+  emailSubject?: string;
+}): Promise<BulkNotifyResult> {
+  const result: BulkNotifyResult = {
+    sms: { sent: 0, failed: [] },
+    email: { sent: 0, failed: [] },
+  };
+  const message = input.message.trim();
+  if (!message) return result;
+
+  if (input.sendSms && process.env.SMS_API_ID) {
+    const uniquePhones = [...new Set(input.phones.map((p) => p.replace(/\D/g, "")).filter(Boolean))];
+    for (const phone of uniquePhones) {
+      try {
+        await sendSms(phone, message);
+        result.sms.sent += 1;
+      } catch (e) {
+        result.sms.failed.push(phone);
+        console.error("[Notify] bulk SMS failed", phone, e);
+      }
+    }
+  }
+
+  if (input.sendEmail && isSmtpConfigured()) {
+    const uniqueEmails = [...new Set(input.emails.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+    const subject = input.emailSubject?.trim() || "Barbershop";
+    for (const email of uniqueEmails) {
+      try {
+        await sendEmail(email, subject, message);
+        result.email.sent += 1;
+      } catch (e) {
+        result.email.failed.push(email);
+        console.error("[Notify] bulk email failed", email, e);
+      }
+    }
+  }
+
+  return result;
 }

@@ -11,6 +11,7 @@ export async function POST(request: Request) {
       slotId,
       clientName,
       clientPhone,
+      clientEmail,
       comment,
     } = body as {
       masterId?: string;
@@ -18,6 +19,7 @@ export async function POST(request: Request) {
       slotId?: string;
       clientName?: string;
       clientPhone?: string;
+      clientEmail?: string;
       comment?: string;
     };
 
@@ -49,13 +51,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const email =
+      typeof clientEmail === "string" && clientEmail.trim() ? clientEmail.trim() : undefined;
+
     const booking = createBooking(
       masterId,
       serviceId,
       slotId,
       name,
       phone,
-      typeof comment === "string" ? comment.trim() || undefined : undefined
+      typeof comment === "string" ? comment.trim() || undefined : undefined,
+      email
     );
 
     if (!booking) {
@@ -65,7 +71,11 @@ export async function POST(request: Request) {
       );
     }
 
-    emitBookingsChanged("booking_created");
+    emitBookingsChanged({
+      reason: "booking_created",
+      slotStart: booking.slotStart,
+      source: "site",
+    });
 
     return NextResponse.json(booking, { status: 201 });
   } catch (err) {

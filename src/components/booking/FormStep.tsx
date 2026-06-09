@@ -4,7 +4,12 @@ import { useState } from "react";
 import { IMaskInput } from "react-imask";
 
 interface FormStepProps {
-  onSubmit: (data: { clientName: string; clientPhone: string; comment: string }) => void;
+  onSubmit: (data: {
+    clientName: string;
+    clientPhone: string;
+    clientEmail: string;
+    comment: string;
+  }) => void;
   isSubmitting: boolean;
 }
 
@@ -13,6 +18,7 @@ const PHONE_MASK = "+{7} (000) 000-00-00";
 export function FormStep({ onSubmit, isSubmitting }: FormStepProps) {
   const [name, setName] = useState("");
   const [phoneUnmasked, setPhoneUnmasked] = useState("");
+  const [email, setEmail] = useState("");
   const [comment, setComment] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -24,6 +30,7 @@ export function FormStep({ onSubmit, isSubmitting }: FormStepProps) {
     onSubmit({
       clientName: name.trim(),
       clientPhone,
+      clientEmail: email.trim(),
       comment: comment.trim(),
     });
   };
@@ -57,6 +64,16 @@ export function FormStep({ onSubmit, isSubmitting }: FormStepProps) {
             type="tel"
             className="w-full rounded-xl border border-[var(--surface)] bg-[var(--bg)] px-4 py-3 text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none"
             required
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-sm text-[var(--text-muted)]">Email (необязательно)</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com"
+            className="w-full rounded-xl border border-[var(--surface)] bg-[var(--bg)] px-4 py-3 text-[var(--text)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none"
           />
         </label>
         <label className="block">

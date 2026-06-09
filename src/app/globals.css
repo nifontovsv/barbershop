@@ -93,19 +93,19 @@ body {
   animation: none;
 }
 
-@keyframes admin-save-toast {
+@keyframes admin-toast-in {
   0% {
     opacity: 0;
-    transform: translateY(-12px) scale(0.96);
+    transform: translateX(calc(100% + 1rem));
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(0);
   }
 }
 
-.animate-admin-save-toast {
-  animation: admin-save-toast 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+.animate-admin-toast-in {
+  animation: admin-toast-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 /* Чекбоксы под дизайн (акцент) */

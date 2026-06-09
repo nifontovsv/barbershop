@@ -1,9 +1,19 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { AdminHeader } from "@/components/admin/AdminHeader";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AdminSidebar, type AdminTabId } from "@/components/admin/AdminSidebar";
+import { AdminEmployeesPanel, type EmployeeListItem } from "@/components/admin/AdminEmployeesPanel";
+import { AdminMasterSchedulePanel } from "@/components/admin/AdminMasterSchedulePanel";
+import { ScheduleDayView, type ScheduleDayShift } from "@/components/admin/ScheduleDayView";
+import type { BreakJournalSavePayload } from "@/components/admin/BreakJournalModal";
+import type { BookingJournalSavePayload } from "@/components/admin/BookingJournalModal";
+import { slotStartLocalYmd, todayYmd } from "@/lib/scheduleLayout";
 import { BookingCatalogEditor, HeaderSiteEditor, ParallaxBgEditor } from "@/components/admin/ContentBookingEditors";
+import { SalonHoursEditor } from "@/components/admin/SalonHoursEditor";
+import { SlotBlockEditModal } from "@/components/admin/SlotBlockEditModal";
+import { AdminClientsPanel } from "@/components/admin/AdminClientsPanel";
+import { AdminToast, type AdminToastPayload } from "@/components/admin/AdminToast";
 import { IntField, RatingField } from "@/components/admin/NumericInputs";
 import { apiBase, asset } from "@/lib/basePath";
 import type {
@@ -14,41 +24,81 @@ import type {
 } from "@/lib/sitePublic";
 import type { Service, ServiceCategory } from "@/types/booking";
 import { ALL_MASTERS_BLOCK_ID } from "@/lib/slotBlockConstants";
-import { salonHourOptions } from "@/lib/salonHours";
+import { defaultSalonHours, salonHourOptionsFrom, type SalonHoursConfig } from "@/lib/salonHours";
 import type { ClientSmsStatusHint } from "@/lib/notify";
+import {
+  canAccessTab,
+  DEFAULT_EMPLOYEE_PERMISSIONS,
+  type AdminPermissionTab,
+  type EmployeePermissions,
+} from "@/lib/adminPermissions";
 
-type TabId = "bookings" | "slot_blocks" | "clients" | "content";
+type TabId = "bookings" | "slot_blocks" | "clients" | "content" | "employees" | "shifts";
 
-const TAB_CONFIG: readonly { id: TabId; label: string }[] = [
-  { id: "bookings", label: "Записи" },
-  { id: "slot_blocks", label: "Блокировка слотов" },
-  { id: "clients", label: "База клиентов" },
-  { id: "content", label: "Контент" },
-] as const;
+interface AdminSessionInfo {
+  login: string;
+  isEnvAdmin: boolean;
+  masterId: string | null;
+  employeeId: string | null;
+  permissions: EmployeePermissions;
+}
 
-function parseAdminTabParam(v: string | null): TabId {
-  if (v === "bookings" || v === "slot_blocks" || v === "clients" || v === "content") return v;
+const TAB_PERMISSION: Record<TabId, AdminPermissionTab | "employees"> = {
+  bookings: "bookings",
+  slot_blocks: "slot_blocks",
+  shifts: "shifts",
+  clients: "clients",
+  content: "content",
+  employees: "employees",
+};
+
+function firstAllowedTab(permissions: EmployeePermissions): TabId {
+  const order: TabId[] = ["bookings", "slot_blocks", "shifts", "clients", "content"];
+  for (const id of order) {
+    if (canAccessTab(permissions, TAB_PERMISSION[id] as AdminPermissionTab)) return id;
+  }
   return "bookings";
 }
 
-interface ClientRow {
-  clientPhone: string;
-  displayName: string;
-  visitCount: number;
-  lastSlotStart: string;
+function parseAdminTabParam(v: string | null): TabId {
+  if (
+    v === "bookings" ||
+    v === "slot_blocks" ||
+    v === "clients" ||
+    v === "content" ||
+    v === "employees" ||
+    v === "shifts"
+  ) {
+    return v;
+  }
+  return "bookings";
 }
 
 interface BookingRow {
   id: string;
   masterId: string;
   masterName: string;
+  serviceId: string;
   serviceName: string;
   clientName: string;
   clientPhone: string;
+  clientEmail?: string | null;
   slotStart: string;
+  slotEnd: string;
   status: string;
   comment?: string | null;
   masterComment?: string | null;
+  createdAt?: string;
+}
+
+interface MasterBreakRow {
+  id: string;
+  masterId: string;
+  masterName: string;
+  slotStart: string;
+  slotEnd: string;
+  durationMinutes: number;
+  comment?: string | null;
 }
 
 interface SlotBlockRow {
@@ -87,13 +137,6 @@ const MEDIA_KINDS = [
   { id: "gallery_clients", label: "Галерея: клиенты" },
 ] as const;
 
-const BOOKING_STATUS_OPTIONS = [
-  { value: "pending", label: "Ожидает" },
-  { value: "confirmed", label: "Подтверждено" },
-  { value: "cancelled", label: "Отменено" },
-  { value: "done", label: "Выполнено" },
-] as const;
-
 /** Акцентные кнопки «Сохранить» / «Создать» / «Добавить в список» */
 const BTN_PRIMARY =
   "cursor-pointer rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-black transition-all duration-200 hover:brightness-110 hover:shadow-md hover:shadow-[var(--accent)]/35 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100 disabled:hover:shadow-none disabled:active:scale-100";
@@ -112,81 +155,6 @@ const BTN_PRIMARY_BATCH =
 
 const BTN_DANGER =
   "cursor-pointer rounded-lg border border-red-500/45 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-100 transition-all duration-200 hover:border-red-400/60 hover:bg-red-500/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50";
-
-function bookingStatusSelectClass(status: string): string {
-  const base =
-    "min-w-[9.5rem] cursor-pointer rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors outline-none focus:ring-2 focus:ring-[var(--accent)]/35";
-  switch (status) {
-    case "pending":
-      return `${base} border-amber-500/55 bg-amber-500/20 text-amber-50`;
-    case "confirmed":
-      return `${base} border-emerald-500/55 bg-emerald-500/20 text-emerald-50`;
-    case "cancelled":
-      return `${base} border-rose-500/45 bg-rose-950/40 text-rose-100`;
-    case "done":
-      return `${base} border-sky-500/55 bg-sky-500/20 text-sky-50`;
-    default:
-      return `${base} border-white/20 bg-zinc-800/80 text-zinc-200`;
-  }
-}
-
-const MASTER_NOTE_SAVE_MS = 550;
-
-function normalizeBookingNote(s: string | null | undefined) {
-  if (s == null) return null;
-  const t = s.trim();
-  return t === "" ? null : t;
-}
-
-/** Заметка мастера: автосохранение при вводе (debounce), высота растёт с текстом */
-function MasterCommentCell({
-  bookingId,
-  saved,
-  onSave,
-}: {
-  bookingId: string;
-  saved: string | null | undefined;
-  onSave: (id: string, draft: string, previous: string | null | undefined) => Promise<void>;
-}) {
-  const [draft, setDraft] = useState(saved ?? "");
-  const taRef = useRef<HTMLTextAreaElement>(null);
-
-  const growTextarea = useCallback(() => {
-    const el = taRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    const minH = 52;
-    const next = Math.max(minH, el.scrollHeight);
-    const cap = Math.round(typeof window !== "undefined" ? window.innerHeight * 0.5 : 480);
-    el.style.height = `${Math.min(next, cap)}px`;
-    el.style.overflowY = next > cap ? "auto" : "hidden";
-  }, []);
-
-  useLayoutEffect(() => {
-    growTextarea();
-  }, [draft, growTextarea]);
-
-  useEffect(() => {
-    const t = window.setTimeout(() => {
-      void onSave(bookingId, draft, saved);
-    }, MASTER_NOTE_SAVE_MS);
-    return () => window.clearTimeout(t);
-  }, [draft, bookingId, saved, onSave]);
-
-  return (
-    <div className="min-w-[14rem] max-w-[min(22rem,42vw)] py-1">
-      <textarea
-        ref={taRef}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        spellCheck={false}
-        rows={1}
-        placeholder="Заметка: пожелания клиента, нюансы работы…"
-        className="w-full resize-none rounded-xl border border-white/12 bg-black/35 px-3.5 py-3 text-[0.9375rem] leading-[1.6] tracking-[0.01em] text-white/95 caret-[var(--accent)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.35)] placeholder:text-white/38 focus:border-[var(--accent)]/45 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/15"
-      />
-    </div>
-  );
-}
 
 function safeParseJson<T>(raw: string | undefined, fallback: T): T {
   if (!raw) return fallback;
@@ -216,6 +184,42 @@ async function uploadAdminImage(subdir: string, file: File): Promise<string> {
     throw new Error(typeof data?.message === "string" ? data.message : "Ошибка загрузки");
   }
   return String(data.path ?? "");
+}
+
+function MasterPhotoThumbnail({
+  photoPath,
+  busy,
+  onClear,
+  size,
+}: {
+  photoPath: string;
+  busy: boolean;
+  onClear: () => void;
+  size: "sm" | "lg";
+}) {
+  const trimmed = photoPath.trim();
+  if (!trimmed) return null;
+  const dim = size === "lg" ? "h-28 w-28" : "h-24 w-24";
+  return (
+    <div className={`relative shrink-0 ${dim}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={mediaPreviewSrc(trimmed)}
+        alt=""
+        className={`${dim} rounded-xl border border-white/15 object-cover`}
+      />
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onClear}
+        title="Убрать фото"
+        aria-label="Убрать фото"
+        className="absolute right-1 top-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-black/70 text-[15px] font-semibold leading-none text-white shadow-md ring-1 ring-white/30 transition hover:bg-red-950/95 hover:text-red-50 hover:ring-red-400/45 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        ×
+      </button>
+    </div>
+  );
 }
 
 function FooterKvEditor({
@@ -728,8 +732,10 @@ export function AdminDashboard() {
     },
     [router, pathname]
   );
-  const [clients, setClients] = useState<ClientRow[] | null>(null);
+
   const [bookings, setBookings] = useState<BookingRow[] | null>(null);
+  const [masterBreaks, setMasterBreaks] = useState<MasterBreakRow[] | null>(null);
+  const [journalServices, setJournalServices] = useState<Service[]>([]);
   const [blocks, setBlocks] = useState<SlotBlockRow[] | null>(null);
   /** Имена мастеров для блокировки слотов */
   const [blockMasterOptions, setBlockMasterOptions] = useState<{ id: string; name: string }[] | null>(
@@ -745,28 +751,83 @@ export function AdminDashboard() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
+  const [editingBlock, setEditingBlock] = useState<SlotBlockRow | null>(null);
   const [showAddMaster, setShowAddMaster] = useState(false);
-  const [saveToast, setSaveToast] = useState<{ message: string; key: number } | null>(null);
+  const [toast, setToast] = useState<AdminToastPayload | null>(null);
   /** На сервере включена отправка SMS клиенту при подтверждении / отмене (для диалога подтверждения). */
   const [clientStatusSmsEnabled, setClientStatusSmsEnabled] = useState(false);
-  const [bookingFilterMasterId, setBookingFilterMasterId] = useState("");
-  const [bookingFilterStatus, setBookingFilterStatus] = useState("");
-  const [bookingFilterDateFrom, setBookingFilterDateFrom] = useState("");
-  const [bookingFilterDateTo, setBookingFilterDateTo] = useState("");
-  const saveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [scheduleDate, setScheduleDate] = useState(todayYmd);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [employees, setEmployees] = useState<EmployeeListItem[] | null>(null);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [selectedShiftMasterId, setSelectedShiftMasterId] = useState<string | null>(null);
+  const [sidebarMasters, setSidebarMasters] = useState<{ id: string; name: string }[]>([]);
+  const [salonHours, setSalonHours] = useState<SalonHoursConfig>(defaultSalonHours);
+  const [dayShifts, setDayShifts] = useState<ScheduleDayShift[] | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<AdminSessionInfo | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const blockSelectAllRef = useRef<HTMLInputElement>(null);
+  const tabRef = useRef(tab);
+  const scheduleDateRef = useRef(scheduleDate);
+  tabRef.current = tab;
+  scheduleDateRef.current = scheduleDate;
 
-  const flashSaved = useCallback((message = "Сохранено") => {
-    if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current);
-    setSaveToast({ message, key: Date.now() });
-    saveToastTimerRef.current = setTimeout(() => {
-      setSaveToast(null);
-      saveToastTimerRef.current = null;
-    }, 2800);
+  const isEnvAdmin = sessionInfo?.isEnvAdmin ?? false;
+  const permissions = sessionInfo?.permissions ?? DEFAULT_EMPLOYEE_PERMISSIONS;
+  const ownMasterId =
+    !isEnvAdmin && permissions.bookingsOwnOnly ? sessionInfo?.masterId ?? null : null;
+  const slotBlocksLocked =
+    !isEnvAdmin && permissions.slotBlocksOwnOnly ? sessionInfo?.masterId ?? null : null;
+  const shiftsLocked =
+    !isEnvAdmin && permissions.shiftsOwnOnly ? sessionInfo?.masterId ?? null : null;
+  const hideOthersPhones = !isEnvAdmin && permissions.hideOthersPhones;
+
+  const showToast = useCallback((message: string, type: AdminToastPayload["type"] = "success") => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type, key: Date.now() });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 5000);
   }, []);
 
-  const blockDate = useBlockForm();
-  const hourOptions = useMemo(() => salonHourOptions(), []);
+  const flashSaved = useCallback((message = "Сохранено") => showToast(message, "success"), [showToast]);
+
+  useEffect(() => {
+    if (!err) return;
+    showToast(err, "error");
+    const clearErr = setTimeout(() => setErr(null), 5000);
+    return () => clearTimeout(clearErr);
+  }, [err, showToast]);
+
+  const blockDate = useBlockForm(salonHours, slotBlocksLocked);
+  const hourOptions = useMemo(() => salonHourOptionsFrom(salonHours), [salonHours]);
+
+  const visibleBlocks = useMemo(() => {
+    if (!blocks) return null;
+    if (isEnvAdmin || !slotBlocksLocked) return blocks;
+    return blocks.filter((b) => b.masterId === slotBlocksLocked);
+  }, [blocks, isEnvAdmin, slotBlocksLocked]);
+
+  const canEditBlock = useCallback(
+    (b: SlotBlockRow) =>
+      isEnvAdmin ||
+      (!!slotBlocksLocked && b.masterId === slotBlocksLocked && b.masterId !== ALL_MASTERS_BLOCK_ID),
+    [isEnvAdmin, slotBlocksLocked]
+  );
+
+  const loadSalonHours = useCallback(async () => {
+    const data = await fetchJson<SalonHoursConfig>(`${apiBase}/api/admin/salon-hours`);
+    setSalonHours(data);
+  }, []);
+
+  const loadDayShifts = useCallback(async (date: string) => {
+    const data = await fetchJson<ScheduleDayShift[]>(
+      `${apiBase}/api/admin/shifts/day?date=${encodeURIComponent(date)}`
+    );
+    setDayShifts(data);
+  }, []);
 
   const masterNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -779,24 +840,37 @@ export function AdminDashboard() {
     return masterNameById.get(masterId) ?? masterId;
   }
 
-  const loadClients = useCallback(async () => {
+  const loadEmployees = useCallback(async () => {
     setErr(null);
-    const data = await fetchJson<ClientRow[]>(`${apiBase}/api/admin/clients`);
-    setClients(data);
+    const [list, masters] = await Promise.all([
+      fetchJson<EmployeeListItem[]>(`${apiBase}/api/admin/employees`),
+      fetchJson<MasterRow[]>(`${apiBase}/api/admin/masters`),
+    ]);
+    setEmployees(list);
+    setSidebarMasters(masters.map((m) => ({ id: m.id, name: m.name })));
+  }, []);
+
+  const loadSidebarMasters = useCallback(async () => {
+    const masters = await fetchJson<MasterRow[]>(`${apiBase}/api/admin/masters`);
+    setSidebarMasters(masters.map((m) => ({ id: m.id, name: m.name })));
   }, []);
 
   const loadBookingsAndBlocks = useCallback(async () => {
     setErr(null);
-    const [b, bl, masters, opts] = await Promise.all([
+    const [b, bl, brk, masters, opts, svcList] = await Promise.all([
       fetchJson<BookingRow[]>(`${apiBase}/api/admin/bookings?limit=300`),
       fetchJson<SlotBlockRow[]>(`${apiBase}/api/admin/slot-blocks`),
+      fetchJson<MasterBreakRow[]>(`${apiBase}/api/admin/master-breaks?limit=300`),
       fetchJson<MasterRow[]>(`${apiBase}/api/admin/masters`),
       fetchJson<{ clientStatusSms: boolean }>(`${apiBase}/api/admin/notify-options`),
+      fetchJson<Service[]>(`${apiBase}/api/admin/services`),
     ]);
     setBookings(b);
     setBlocks(bl);
+    setMasterBreaks(brk);
     setBlockMasterOptions(masters.map((m) => ({ id: m.id, name: m.name })));
     setClientStatusSmsEnabled(opts.clientStatusSms);
+    setJournalServices(svcList);
   }, []);
 
   const loadContent = useCallback(async () => {
@@ -820,32 +894,107 @@ export function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    if (tab === "clients") {
-      loadClients().catch((e: Error) => setErr(e.message));
-    } else if (tab === "bookings" || tab === "slot_blocks") {
+    fetchJson<{
+      login: string;
+      isEnvAdmin: boolean;
+      masterId: string | null;
+      employeeId: string | null;
+      permissions: EmployeePermissions;
+    }>(`${apiBase}/api/admin/session`)
+      .then((data) => {
+        setSessionInfo({
+          login: typeof data.login === "string" ? data.login : "admin",
+          isEnvAdmin: data.isEnvAdmin === true,
+          masterId: typeof data.masterId === "string" ? data.masterId : null,
+          employeeId: typeof data.employeeId === "string" ? data.employeeId : null,
+          permissions: data.permissions ?? DEFAULT_EMPLOYEE_PERMISSIONS,
+        });
+        setSessionReady(true);
+      })
+      .catch(() => router.replace("/admin/login"));
+  }, [router]);
+
+  useEffect(() => {
+    if (!sessionReady || !sessionInfo || isEnvAdmin) return;
+    if (tab === "employees") {
+      setTab(firstAllowedTab(permissions));
+      return;
+    }
+    if (!canAccessTab(permissions, TAB_PERMISSION[tab] as AdminPermissionTab)) {
+      setTab(firstAllowedTab(permissions));
+    }
+  }, [sessionReady, sessionInfo, isEnvAdmin, permissions, tab, setTab]);
+
+  useEffect(() => {
+    const defaultMaster = shiftsLocked ?? sessionInfo?.masterId;
+    if (defaultMaster && !selectedShiftMasterId) {
+      setSelectedShiftMasterId(defaultMaster);
+    }
+  }, [shiftsLocked, sessionInfo?.masterId, selectedShiftMasterId]);
+
+  useEffect(() => {
+    if (tab === "bookings" || tab === "slot_blocks") {
       loadBookingsAndBlocks().catch((e: Error) => setErr(e.message));
-    } else {
+    } else if (tab === "employees" && isEnvAdmin) {
+      loadEmployees().catch((e: Error) => setErr(e.message));
+    } else if (tab === "shifts") {
+      loadSidebarMasters().catch((e: Error) => setErr(e.message));
+    } else if (tab === "content" && (isEnvAdmin || canAccessTab(permissions, "content"))) {
       loadContent().catch((e: Error) => setErr(e.message));
     }
-  }, [tab, loadClients, loadBookingsAndBlocks, loadContent]);
+  }, [tab, isEnvAdmin, permissions, loadBookingsAndBlocks, loadContent, loadEmployees, loadSidebarMasters]);
 
-  /** SSE: обновление «Записей» и блокировок при новой записи с сайта или правках в админке (без WebSocket — см. /api/admin/bookings/stream). */
   useEffect(() => {
-    if (tab !== "bookings" && tab !== "slot_blocks") return;
+    if (isEnvAdmin) loadEmployees().catch(() => {});
+  }, [loadEmployees, isEnvAdmin]);
+
+  useEffect(() => {
+    loadSalonHours().catch(() => {});
+  }, [loadSalonHours]);
+
+  useEffect(() => {
+    if (tab !== "bookings") return;
+    loadDayShifts(scheduleDate).catch(() => setDayShifts([]));
+  }, [tab, scheduleDate, loadDayShifts]);
+
+  /** SSE + опрос ревизии: журнал обновляется при записи с сайта и правках в админке. */
+  useEffect(() => {
+    if (!sessionReady) return;
     const url = `${apiBase}/api/admin/bookings/stream`;
     const es = new EventSource(url, { withCredentials: true });
-    let debounce: ReturnType<typeof setTimeout> | undefined;
-    es.onmessage = () => {
-      if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(() => {
-        loadBookingsAndBlocks().catch(() => {});
-      }, 350);
+
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data) as {
+          reason?: string;
+          source?: string;
+          slotStart?: string;
+        };
+        if (
+          data.reason === "booking_created" &&
+          data.source === "site" &&
+          typeof data.slotStart === "string"
+        ) {
+          const ymd = slotStartLocalYmd(data.slotStart);
+          if (ymd) {
+            setScheduleDate(ymd);
+            setTab("bookings");
+            flashSaved("Новая запись с сайта");
+          }
+        }
+      } catch {
+        /* ignore malformed SSE payload */
+      }
+      loadBookingsAndBlocks().catch(() => {});
+      if (tabRef.current === "bookings") {
+        loadDayShifts(scheduleDateRef.current).catch(() => {});
+      }
     };
+
     return () => {
-      if (debounce) clearTimeout(debounce);
       es.close();
     };
-  }, [tab, loadBookingsAndBlocks]);
+  }, [sessionReady, loadBookingsAndBlocks, loadDayShifts, flashSaved]);
 
   useEffect(() => {
     if (tab !== "content") setShowAddMaster(false);
@@ -856,109 +1005,175 @@ export function AdminDashboard() {
       setSelectedBlockIds([]);
       return;
     }
-    if (!blocks) return;
-    const valid = new Set(blocks.map((b) => b.id));
+    if (!visibleBlocks) return;
+    const valid = new Set(visibleBlocks.map((b) => b.id));
     setSelectedBlockIds((prev) => prev.filter((id) => valid.has(id)));
-  }, [blocks, tab]);
+  }, [visibleBlocks, tab]);
 
   useEffect(() => {
     const el = blockSelectAllRef.current;
     if (!el) return;
-    if (!blocks?.length) {
+    if (!visibleBlocks?.length) {
       el.indeterminate = false;
       return;
     }
     const n = selectedBlockIds.length;
-    el.indeterminate = n > 0 && n < blocks.length;
-  }, [selectedBlockIds, blocks]);
+    el.indeterminate = n > 0 && n < visibleBlocks.length;
+  }, [selectedBlockIds, visibleBlocks]);
 
-  const filteredBookings = useMemo(() => {
-    if (!bookings) return null;
-    return bookings.filter((b) => {
-      if (bookingFilterMasterId && b.masterId !== bookingFilterMasterId) return false;
-      if (bookingFilterStatus && b.status !== bookingFilterStatus) return false;
-      if (bookingFilterDateFrom || bookingFilterDateTo) {
-        const ymd = slotStartLocalYmd(b.slotStart);
-        if (bookingFilterDateFrom && ymd < bookingFilterDateFrom) return false;
-        if (bookingFilterDateTo && ymd > bookingFilterDateTo) return false;
-      }
-      return true;
-    });
-  }, [
-    bookings,
-    bookingFilterMasterId,
-    bookingFilterStatus,
-    bookingFilterDateFrom,
-    bookingFilterDateTo,
-  ]);
-
-  const bookingFiltersActive =
-    Boolean(bookingFilterMasterId) ||
-    Boolean(bookingFilterStatus) ||
-    Boolean(bookingFilterDateFrom) ||
-    Boolean(bookingFilterDateTo);
-
-  const onStatusChange = async (id: string, status: string) => {
-    const prev = bookings?.find((x) => x.id === id);
-    if (
-      prev &&
-      prev.status !== status &&
-      (status === "confirmed" || status === "cancelled") &&
-      clientStatusSmsEnabled &&
-      prev.clientPhone.replace(/\D/g, "")
-    ) {
-      const action =
-        status === "confirmed" ? "подтверждении записи" : "отмене записи";
-      const ok = window.confirm(
-        `Клиенту на номер ${prev.clientPhone} будет отправлено SMS об ${action}.\n\nПродолжить?`
-      );
-      if (!ok) return;
-    }
-
-    setBusy(true);
-    setErr(null);
-    try {
-      const data = await fetchJson<BookingRow & { clientSms?: ClientSmsStatusHint }>(
-        `${apiBase}/api/admin/bookings/${encodeURIComponent(id)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status }),
-        }
-      );
-      await loadBookingsAndBlocks();
-      if (data.clientSms?.send) {
-        flashSaved(
-          data.clientSms.kind === "confirmed"
-            ? "Клиенту отправлено SMS о подтверждении записи."
-            : "Клиенту отправлено SMS об отмене записи."
+  const saveBooking = useCallback(
+    async (id: string, payload: BookingJournalSavePayload) => {
+      const prev = bookings?.find((x) => x.id === id);
+      if (
+        prev &&
+        prev.status !== payload.status &&
+        (payload.status === "confirmed" || payload.status === "cancelled") &&
+        clientStatusSmsEnabled &&
+        prev.clientPhone.replace(/\D/g, "")
+      ) {
+        const action =
+          payload.status === "confirmed" ? "подтверждении записи" : "отмене записи";
+        const ok = window.confirm(
+          `Клиенту на номер ${prev.clientPhone} будет отправлено SMS об ${action}.\n\nПродолжить?`
         );
+        if (!ok) return;
       }
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Ошибка");
-    } finally {
-      setBusy(false);
-    }
-  };
 
-  const saveMasterComment = useCallback(
-    async (id: string, raw: string, previous: string | null | undefined) => {
-      const next = normalizeBookingNote(raw);
-      const prev = normalizeBookingNote(previous ?? null);
-      if (next === prev) return;
+      setBusy(true);
+      setErr(null);
+      try {
+        const data = await fetchJson<BookingRow & { clientSms?: ClientSmsStatusHint }>(
+          `${apiBase}/api/admin/bookings/${encodeURIComponent(id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
+        await loadBookingsAndBlocks();
+        if (data.clientSms?.send) {
+          flashSaved(
+            data.clientSms.kind === "confirmed"
+              ? "Клиенту отправлено SMS о подтверждении записи."
+              : "Клиенту отправлено SMS об отмене записи."
+          );
+        } else {
+          flashSaved("Запись сохранена");
+        }
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
+        throw e;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [bookings, clientStatusSmsEnabled, loadBookingsAndBlocks, flashSaved]
+  );
+
+  const createBooking = useCallback(
+    async (payload: BookingJournalSavePayload) => {
+      setBusy(true);
+      setErr(null);
+      try {
+        await fetchJson(`${apiBase}/api/admin/bookings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        await loadBookingsAndBlocks();
+        flashSaved("Запись создана");
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
+        throw e;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadBookingsAndBlocks, flashSaved]
+  );
+
+  const deleteBooking = useCallback(
+    async (id: string) => {
+      setBusy(true);
       setErr(null);
       try {
         await fetchJson(`${apiBase}/api/admin/bookings/${encodeURIComponent(id)}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ masterComment: next }),
+          method: "DELETE",
         });
         await loadBookingsAndBlocks();
+        flashSaved("Запись удалена");
       } catch (e: unknown) {
         setErr(e instanceof Error ? e.message : "Ошибка");
+        throw e;
+      } finally {
+        setBusy(false);
       }
     },
-    [loadBookingsAndBlocks]
+    [loadBookingsAndBlocks, flashSaved]
+  );
+
+  const createBreak = useCallback(
+    async (payload: BreakJournalSavePayload) => {
+      setBusy(true);
+      setErr(null);
+      try {
+        await fetchJson(`${apiBase}/api/admin/master-breaks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        await loadBookingsAndBlocks();
+        flashSaved("Перерыв добавлен");
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
+        throw e;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadBookingsAndBlocks, flashSaved]
+  );
+
+  const saveBreak = useCallback(
+    async (id: string, payload: BreakJournalSavePayload) => {
+      setBusy(true);
+      setErr(null);
+      try {
+        await fetchJson(`${apiBase}/api/admin/master-breaks/${encodeURIComponent(id)}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        await loadBookingsAndBlocks();
+        flashSaved("Перерыв сохранён");
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
+        throw e;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadBookingsAndBlocks, flashSaved]
+  );
+
+  const deleteBreak = useCallback(
+    async (id: string) => {
+      setBusy(true);
+      setErr(null);
+      try {
+        await fetchJson(`${apiBase}/api/admin/master-breaks/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+        await loadBookingsAndBlocks();
+        flashSaved("Перерыв удалён");
+      } catch (e: unknown) {
+        setErr(e instanceof Error ? e.message : "Ошибка");
+        throw e;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [loadBookingsAndBlocks, flashSaved]
   );
 
   const addBlock = async () => {
@@ -997,6 +1212,26 @@ export function AdminDashboard() {
     }
   };
 
+  const saveBlockNote = async (id: string, note: string | null) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await fetchJson(`${apiBase}/api/admin/slot-blocks/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      setEditingBlock(null);
+      await loadBookingsAndBlocks();
+      flashSaved("Блокировка сохранена");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Ошибка");
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const removeBlock = async (id: string) => {
     if (!confirm("Удалить блокировку?")) return;
     setBusy(true);
@@ -1021,11 +1256,11 @@ export function AdminDashboard() {
   };
 
   const toggleSelectAllBlocks = () => {
-    if (!blocks?.length) return;
-    if (selectedBlockIds.length === blocks.length) {
+    if (!visibleBlocks?.length) return;
+    if (selectedBlockIds.length === visibleBlocks.length) {
       setSelectedBlockIds([]);
     } else {
-      setSelectedBlockIds(blocks.map((b) => b.id));
+      setSelectedBlockIds(visibleBlocks.map((b) => b.id));
     }
   };
 
@@ -1076,260 +1311,106 @@ export function AdminDashboard() {
     [loadContent, flashSaved]
   );
 
+  useEffect(() => {
+    if (tab !== "bookings") return;
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+    };
+  }, [tab]);
+
+  if (!sessionReady) {
+    return (
+      <div className="flex h-dvh items-center justify-center text-sm text-white/60">
+        Загрузка панели…
+      </div>
+    );
+  }
+
   return (
-    <>
-      <AdminHeader />
-      <div className="mx-auto max-w-6xl px-4 py-6">
-        <h1 className="text-2xl font-semibold text-[var(--text)]">Панель управления</h1>
-        <p className="mt-1 text-sm text-white/60">Клиенты, записи, блокировки слотов и контент сайта</p>
+    <div className="flex h-dvh overflow-hidden">
+      <AdminSidebar
+        tab={tab as AdminTabId}
+        onTabChange={setTab}
+        selectedDate={scheduleDate}
+        onSelectDate={setScheduleDate}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
+        isEnvAdmin={isEnvAdmin}
+        permissions={permissions}
+        userLogin={sessionInfo?.login ?? null}
+        employees={(employees ?? []).map((e) => ({ id: e.id, name: e.name }))}
+        masters={sidebarMasters}
+        selectedEmployeeId={selectedEmployeeId}
+        selectedShiftMasterId={selectedShiftMasterId}
+        onSelectEmployee={setSelectedEmployeeId}
+        onSelectShiftMaster={setSelectedShiftMasterId}
+      />
+      <div
+        className={`flex min-w-0 flex-1 flex-col overflow-hidden ${
+          tab === "bookings" ? "" : "overflow-y-auto"
+        }`}
+      >
+        {!isEnvAdmin && permissions.bookingsOwnOnly && !sessionInfo?.masterId ? (
+          <div className="mx-4 mt-3 shrink-0 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+            У вашей учётной записи не привязан мастер. Обратитесь к администратору.
+          </div>
+        ) : null}
 
         <div
-          className="sticky top-14 z-10 -mx-4 mt-6 border-b border-white/10 bg-[var(--bg)]/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-[var(--bg)]/85"
+          className={
+            tab === "bookings"
+              ? "flex h-full min-h-0 flex-1 basis-0 flex-col overflow-hidden px-4 pb-3"
+              : "min-h-0 flex-1 px-4 pb-4 pt-1"
+          }
         >
-          <div className="flex flex-wrap gap-2">
-            {TAB_CONFIG.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                className={`cursor-pointer rounded-full px-4 py-2 text-sm font-medium transition ${
-                  tab === id
-                    ? "bg-[var(--accent)] text-black"
-                    : "bg-[var(--surface)] text-white/85 ring-1 ring-white/10 hover:ring-white/20"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {err && (
-          <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            {err}
-          </div>
-        )}
-
-        {saveToast && (
-          <div
-            key={saveToast.key}
-            role="status"
-            className="animate-admin-save-toast mt-4 flex items-center gap-3 rounded-xl border border-emerald-500/45 bg-emerald-950/55 px-4 py-3 text-sm text-emerald-50 shadow-lg shadow-emerald-950/30"
-          >
-            <span
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-500/25 text-base text-emerald-200 ring-2 ring-emerald-400/30"
-              aria-hidden
-            >
-              ✓
-            </span>
-            <span className="font-medium">{saveToast.message}</span>
-          </div>
-        )}
-
         {tab === "clients" && (
-          <section className="mt-6 overflow-x-auto rounded-2xl border border-white/10 bg-[var(--surface)]/60">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-white/10 text-white/60">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Телефон</th>
-                  <th className="px-4 py-3 font-medium">Имя (последнее)</th>
-                  <th className="px-4 py-3 font-medium">Визитов</th>
-                  <th className="px-4 py-3 font-medium">Последняя запись</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!clients ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-white/50">
-                      Загрузка…
-                    </td>
-                  </tr>
-                ) : clients.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-white/50">
-                      Пока нет клиентов в базе
-                    </td>
-                  </tr>
-                ) : (
-                  clients.map((c) => (
-                    <tr key={c.clientPhone} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="px-4 py-3 font-mono text-white/90">{c.clientPhone}</td>
-                      <td className="px-4 py-3">{c.displayName}</td>
-                      <td className="px-4 py-3">{c.visitCount}</td>
-                      <td className="px-4 py-3 text-white/75">{formatSlotLocal(c.lastSlotStart)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </section>
+          <AdminClientsPanel
+            busy={busy}
+            setBusy={setBusy}
+            setErr={setErr}
+            flashSaved={flashSaved}
+          />
         )}
 
         {tab === "bookings" && (
-          <div className="mt-6">
-            <section>
-              <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-white/10 bg-[var(--surface)]/40 px-4 py-3">
-                <label className="flex min-w-[10rem] flex-col gap-1 text-xs text-white/55">
-                  Мастер
-                  <select
-                    className="rounded-lg border border-white/15 bg-black/35 px-2 py-1.5 text-sm text-white outline-none focus:border-[var(--accent)]/45 focus:ring-2 focus:ring-[var(--accent)]/15"
-                    value={bookingFilterMasterId}
-                    disabled={!bookings}
-                    onChange={(e) => setBookingFilterMasterId(e.target.value)}
-                  >
-                    <option value="">Все</option>
-                    {(blockMasterOptions ?? [])
-                      .slice()
-                      .sort((a, b) => a.name.localeCompare(b.name, "ru"))
-                      .map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-                <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs text-white/55">
-                  Статус
-                  <select
-                    className="rounded-lg border border-white/15 bg-black/35 px-2 py-1.5 text-sm text-white outline-none focus:border-[var(--accent)]/45 focus:ring-2 focus:ring-[var(--accent)]/15"
-                    value={bookingFilterStatus}
-                    disabled={!bookings}
-                    onChange={(e) => setBookingFilterStatus(e.target.value)}
-                  >
-                    <option value="">Все</option>
-                    {BOOKING_STATUS_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs text-white/55">
-                  Дата с
-                  <input
-                    type="date"
-                    className="rounded-lg border border-white/15 bg-black/35 px-2 py-1.5 text-sm text-white outline-none focus:border-[var(--accent)]/45 focus:ring-2 focus:ring-[var(--accent)]/15"
-                    value={bookingFilterDateFrom}
-                    disabled={!bookings}
-                    onChange={(e) => setBookingFilterDateFrom(e.target.value)}
-                  />
-                </label>
-                <label className="flex min-w-[9.5rem] flex-col gap-1 text-xs text-white/55">
-                  Дата по
-                  <input
-                    type="date"
-                    className="rounded-lg border border-white/15 bg-black/35 px-2 py-1.5 text-sm text-white outline-none focus:border-[var(--accent)]/45 focus:ring-2 focus:ring-[var(--accent)]/15"
-                    value={bookingFilterDateTo}
-                    disabled={!bookings}
-                    onChange={(e) => setBookingFilterDateTo(e.target.value)}
-                  />
-                </label>
-                <button
-                  type="button"
-                  disabled={!bookings || !bookingFiltersActive}
-                  onClick={() => {
-                    setBookingFilterMasterId("");
-                    setBookingFilterStatus("");
-                    setBookingFilterDateFrom("");
-                    setBookingFilterDateTo("");
-                  }}
-                  className="rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/85 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Сбросить
-                </button>
-              </div>
-              {bookings && (
-                <p className="mb-2 text-xs text-white/45">
-                  {bookingFiltersActive
-                    ? `Показано ${filteredBookings?.length ?? 0} из ${bookings.length} записей`
-                    : `Всего записей: ${bookings.length}`}
-                </p>
-              )}
-              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[var(--surface)]/60">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-white/10 text-white/60">
-                    <tr>
-                      <th className="px-3 py-2">Дата и время</th>
-                      <th className="px-3 py-2">Клиент</th>
-                      <th className="px-3 py-2">Мастер / услуга</th>
-                      <th className="px-3 py-2">Комментарий клиента</th>
-                      <th className="px-3 py-2">Статус</th>
-                      <th className="min-w-[16rem] px-3 py-2">Заметка мастера</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {!bookings ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-white/50">
-                          Загрузка…
-                        </td>
-                      </tr>
-                    ) : !filteredBookings?.length ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-white/50">
-                          {bookingFiltersActive
-                            ? "Нет записей по выбранным фильтрам"
-                            : "Нет записей"}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredBookings.map((b) => (
-                        <tr key={b.id} className="border-b border-white/5 hover:bg-white/5">
-                          <td className="align-middle whitespace-nowrap px-3 py-2 text-white/85">
-                            {formatSlotLocal(b.slotStart)}
-                          </td>
-                          <td className="align-middle px-3 py-2">
-                            <div>{b.clientName}</div>
-                            <div className="font-mono text-xs text-white/55">{b.clientPhone}</div>
-                          </td>
-                          <td className="align-middle px-3 py-2">
-                            <div>{b.masterName}</div>
-                            <div className="text-xs text-white/55">{b.serviceName}</div>
-                          </td>
-                          <td className="align-middle max-w-[200px] px-3 py-2 text-xs text-white/65">
-                            {b.comment?.trim() ? b.comment : "—"}
-                          </td>
-                          <td className="align-middle px-3 py-2">
-                            <select
-                              className={bookingStatusSelectClass(b.status)}
-                              value={b.status}
-                              disabled={busy}
-                              onChange={(e) => onStatusChange(b.id, e.target.value)}
-                            >
-                              {BOOKING_STATUS_OPTIONS.map((o) => (
-                                <option key={o.value} value={o.value}>
-                                  {o.label}
-                                </option>
-                              ))}
-                              {!BOOKING_STATUS_OPTIONS.some((o) => o.value === b.status) && (
-                                <option value={b.status}>{b.status}</option>
-                              )}
-                            </select>
-                          </td>
-                          <td className="align-middle min-w-[16rem] max-w-[min(22rem,42vw)] px-2 py-2">
-                            <MasterCommentCell
-                              key={b.id}
-                              bookingId={b.id}
-                              saved={b.masterComment}
-                              onSave={saveMasterComment}
-                            />
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+          <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+            <ScheduleDayView
+              date={scheduleDate}
+              salonHours={salonHours}
+              masters={blockMasterOptions ?? []}
+              services={journalServices}
+              bookings={bookings}
+              breaks={masterBreaks}
+              blocks={blocks}
+              dayShifts={dayShifts}
+              busy={busy}
+              ownMasterId={ownMasterId}
+              hideOthersPhones={hideOthersPhones}
+              viewerMasterId={sessionInfo?.masterId ?? null}
+              onSaveBooking={saveBooking}
+              onCreateBooking={createBooking}
+              onDeleteBooking={deleteBooking}
+              onSaveBreak={saveBreak}
+              onCreateBreak={createBreak}
+              onDeleteBreak={deleteBreak}
+            />
           </div>
         )}
 
         {tab === "slot_blocks" && (
-          <div className="mt-6">
+          <div>
             <section>
-              <p className="mb-4 max-w-3xl text-sm text-white/55">
-                Заблокированное время недоступно в форме записи. Пункт «Все мастера» — блокировка для
-                всех.
+              <p className="mb-4 text-sm text-white/55">
+                {isEnvAdmin || !slotBlocksLocked
+                  ? "Заблокированное время недоступно в форме записи. Пункт «Все мастера» — блокировка для всех."
+                  : "Заблокированное время недоступно в форме записи. Вы можете блокировать слоты только для себя."}
               </p>
               <div className="space-y-4 rounded-2xl border border-white/10 bg-[var(--surface)]/40 p-4">
                 <div className="flex flex-wrap items-end gap-3">
@@ -1346,11 +1427,17 @@ export function AdminDashboard() {
                     Мастер
                     <select
                       value={blockDate.masterId}
+                      disabled={!!slotBlocksLocked}
                       onChange={(e) => blockDate.setMasterId(e.target.value)}
-                      className="rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white"
+                      className="rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white disabled:opacity-60"
                     >
-                      <option value={ALL_MASTERS_BLOCK_ID}>Все мастера</option>
-                      {blockMasterOptions?.map((m) => (
+                      {isEnvAdmin || !slotBlocksLocked ? (
+                        <option value={ALL_MASTERS_BLOCK_ID}>Все мастера</option>
+                      ) : null}
+                      {(slotBlocksLocked
+                        ? blockMasterOptions?.filter((m) => m.id === slotBlocksLocked)
+                        : blockMasterOptions
+                      )?.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.name}
                         </option>
@@ -1415,13 +1502,13 @@ export function AdminDashboard() {
                   </div>
                 </div>
               </div>
-              {blocks && blocks.length > 0 && (
+              {visibleBlocks && visibleBlocks.length > 0 && (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 px-4 py-3">
                   <p className="text-sm text-white/70">
                     {selectedBlockIds.length > 0 ? (
                       <>
                         Выбрано: <span className="font-semibold text-[var(--accent)]">{selectedBlockIds.length}</span> из{" "}
-                        {blocks.length}
+                        {visibleBlocks.length}
                       </>
                     ) : (
                       <>Отметьте строки или выберите все — затем удалите блокировки одной кнопкой.</>
@@ -1444,13 +1531,16 @@ export function AdminDashboard() {
                   <thead className="border-b border-white/10 text-white/60">
                     <tr>
                       <th className="w-10 px-2 py-2">
-                        {blocks && blocks.length > 0 ? (
+                        {visibleBlocks && visibleBlocks.length > 0 ? (
                           <input
                             ref={blockSelectAllRef}
                             type="checkbox"
                             title="Выбрать все"
                             disabled={busy}
-                            checked={selectedBlockIds.length > 0 && selectedBlockIds.length === blocks.length}
+                            checked={
+                              selectedBlockIds.length > 0 &&
+                              selectedBlockIds.length === visibleBlocks.length
+                            }
                             onChange={toggleSelectAllBlocks}
                             className="h-4 w-4 cursor-pointer accent-[var(--accent)]"
                           />
@@ -1464,21 +1554,22 @@ export function AdminDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {!blocks ? (
+                    {!visibleBlocks ? (
                       <tr>
                         <td colSpan={6} className="px-4 py-6 text-center text-white/50">
                           Загрузка…
                         </td>
                       </tr>
-                    ) : blocks.length === 0 ? (
+                    ) : visibleBlocks.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="px-4 py-6 text-center text-white/50">
                           Нет блокировок
                         </td>
                       </tr>
                     ) : (
-                      blocks.map((s) => {
+                      visibleBlocks.map((s) => {
                         const selected = selectedBlockIds.includes(s.id);
+                        const editable = canEditBlock(s);
                         return (
                           <tr
                             key={s.id}
@@ -1492,9 +1583,9 @@ export function AdminDashboard() {
                               <input
                                 type="checkbox"
                                 checked={selected}
-                                disabled={busy}
+                                disabled={busy || !editable}
                                 onChange={() => toggleBlockRowSelected(s.id)}
-                                className="h-4 w-4 cursor-pointer accent-[var(--accent)]"
+                                className="h-4 w-4 cursor-pointer accent-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
                                 aria-label={`Выбрать блокировку ${s.blockDate} ${s.hour}:00`}
                               />
                             </td>
@@ -1507,14 +1598,28 @@ export function AdminDashboard() {
                             </td>
                             <td className="px-3 py-2 text-white/65">{s.note ?? "—"}</td>
                             <td className="px-3 py-2 text-right">
-                              <button
-                                type="button"
-                                disabled={busy}
-                                onClick={() => removeBlock(s.id)}
-                                className="cursor-pointer text-sm text-red-300 hover:underline disabled:cursor-not-allowed"
-                              >
-                                Удалить
-                              </button>
+                              {editable ? (
+                                <div className="flex flex-wrap items-center justify-end gap-3">
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => setEditingBlock(s)}
+                                    className="cursor-pointer text-sm text-[var(--accent)] hover:underline disabled:cursor-not-allowed"
+                                  >
+                                    Изменить
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => removeBlock(s.id)}
+                                    className="cursor-pointer text-sm text-red-300 hover:underline disabled:cursor-not-allowed"
+                                  >
+                                    Удалить
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-white/35">—</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -1527,8 +1632,56 @@ export function AdminDashboard() {
           </div>
         )}
 
+        {tab === "employees" && isEnvAdmin && (
+          <AdminEmployeesPanel
+            employees={employees}
+            masters={sidebarMasters}
+            busy={busy}
+            selectedId={selectedEmployeeId}
+            onSelect={setSelectedEmployeeId}
+            onReload={loadEmployees}
+            setBusy={setBusy}
+            setErr={setErr}
+            flashSaved={flashSaved}
+          />
+        )}
+
+        {tab === "shifts" && (
+          <AdminMasterSchedulePanel
+            masters={sidebarMasters}
+            salonHours={salonHours}
+            selectedMasterId={selectedShiftMasterId}
+            onSelectMaster={setSelectedShiftMasterId}
+            initialDate={scheduleDate}
+            busy={busy}
+            setBusy={setBusy}
+            setErr={setErr}
+            flashSaved={flashSaved}
+            lockedMasterId={shiftsLocked}
+          />
+        )}
+
         {tab === "content" && siteKv && mastersList && bookingCatalog && (
-          <div className="mt-6 space-y-10">
+          <div className="space-y-10">
+            <section>
+              <h2 className="text-lg font-semibold">Режим работы</h2>
+              <p className="mt-1 text-sm text-white/55">
+                Часы работы салона для журнала, блокировки слотов и записи на сайте.
+              </p>
+              <div className="mt-4">
+                <SalonHoursEditor
+                  config={salonHours}
+                  busy={busy}
+                  setBusy={setBusy}
+                  setErr={setErr}
+                  onSaved={(next) => {
+                    setSalonHours(next);
+                    flashSaved("Режим работы сохранён");
+                  }}
+                />
+              </div>
+            </section>
+
             <section>
               <h2 className="text-lg font-semibold">Шапка сайта и услуги для записи</h2>
               <p className="mt-1 text-sm text-white/55">
@@ -1659,17 +1812,47 @@ export function AdminDashboard() {
         {tab === "content" && (!siteKv || !mastersList || !bookingCatalog) && (
           <p className="mt-8 text-white/55">Загрузка контента…</p>
         )}
+        </div>
       </div>
-    </>
+
+      {editingBlock ? (
+        <SlotBlockEditModal
+          block={{
+            id: editingBlock.id,
+            blockDate: editingBlock.blockDate,
+            hour: editingBlock.hour,
+            masterLabel:
+              editingBlock.masterId === ALL_MASTERS_BLOCK_ID
+                ? "Все мастера"
+                : blockMasterLabel(editingBlock.masterId),
+            note: editingBlock.note,
+          }}
+          busy={busy}
+          onClose={() => setEditingBlock(null)}
+          onSave={(note) => saveBlockNote(editingBlock.id, note)}
+        />
+      ) : null}
+      <AdminToast toast={toast} />
+    </div>
   );
 }
 
-function useBlockForm() {
+function useBlockForm(salonHours: SalonHoursConfig, lockedMasterId?: string | null) {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
-  const [selectedHours, setSelectedHours] = useState<number[]>([12]);
-  const [masterId, setMasterId] = useState(ALL_MASTERS_BLOCK_ID);
+  const [selectedHours, setSelectedHours] = useState<number[]>([salonHours.startHour]);
+  const [masterId, setMasterId] = useState(lockedMasterId ?? ALL_MASTERS_BLOCK_ID);
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (lockedMasterId) setMasterId(lockedMasterId);
+  }, [lockedMasterId]);
+
+  useEffect(() => {
+    setSelectedHours((prev) =>
+      prev.filter((h) => h >= salonHours.startHour && h < salonHours.endHourExclusive)
+    );
+  }, [salonHours.startHour, salonHours.endHourExclusive]);
 
   const toggleHour = (h: number) => {
     setSelectedHours((prev) => {
@@ -1680,7 +1863,7 @@ function useBlockForm() {
     });
   };
 
-  const selectAllHours = () => setSelectedHours(salonHourOptions());
+  const selectAllHours = () => setSelectedHours(salonHourOptionsFrom(salonHours));
   const clearHours = () => setSelectedHours([]);
 
   return {
@@ -1704,19 +1887,6 @@ function formatSlotLocal(iso: string) {
     return d.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
   } catch {
     return iso;
-  }
-}
-
-/** Календарная дата слота в локальной таймзоне (YYYY-MM-DD) для фильтров. */
-function slotStartLocalYmd(iso: string): string {
-  try {
-    const d = new Date(iso);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  } catch {
-    return "";
   }
 }
 
@@ -2087,14 +2257,12 @@ function AddMasterForm({
         <div className="sm:col-span-2">
           <span className="text-xs text-white/65">Фото</span>
           <div className="mt-2 flex flex-wrap items-end gap-4">
-            {photoPath.trim() ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={mediaPreviewSrc(photoPath.trim())}
-                alt=""
-                className="h-24 w-24 rounded-xl border border-white/15 object-cover"
-              />
-            ) : null}
+            <MasterPhotoThumbnail
+              photoPath={photoPath}
+              busy={busy}
+              size="sm"
+              onClear={() => setPhotoPath("")}
+            />
             <label className="text-xs text-white/60">
               Загрузить
               <input
@@ -2315,18 +2483,17 @@ function MasterEditor({
         <div className="sm:col-span-2">
           <span className="text-xs text-white/65">Фото</span>
           <div className="mt-2 flex flex-wrap items-end gap-4">
-            {photoPath.trim() ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={mediaPreviewSrc(photoPath.trim())}
-                alt=""
-                className="h-28 w-28 rounded-xl border border-white/15 object-cover"
-              />
-            ) : (
-              <div className="flex h-28 w-28 items-center justify-center rounded-xl border border-dashed border-white/20 text-xs text-white/40">
+            <MasterPhotoThumbnail
+              photoPath={photoPath}
+              busy={busy}
+              size="lg"
+              onClear={() => setPhotoPath("")}
+            />
+            {!photoPath.trim() ? (
+              <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl border border-dashed border-white/20 text-xs text-white/40">
                 Нет фото
               </div>
-            )}
+            ) : null}
             <label className="text-xs text-white/60">
               Загрузить
               <input

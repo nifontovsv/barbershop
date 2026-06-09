@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { requireAdminSession } from "@/lib/requireAdmin";
+import { requireTabSession } from "@/lib/requireAdmin";
 import { getAllSiteKv, setSiteKv } from "@/lib/db";
 
 export async function GET() {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("content");
+  if (!auth.ok) return auth.response;
   return NextResponse.json(getAllSiteKv());
 }
 
 export async function PATCH(request: Request) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("content");
+  if (!auth.ok) return auth.response;
   const body = await request.json().catch(() => ({}));
   const key = typeof body.key === "string" ? body.key.trim() : "";
   const value = body.value;

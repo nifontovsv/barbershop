@@ -12,6 +12,7 @@ import { ReviewCtaSection } from "@/components/landing/ReviewCtaSection";
 import { MapSection } from "@/components/landing/MapSection";
 import { Footer } from "@/components/landing/Footer";
 import { BookingModal } from "@/components/booking/BookingModal";
+import { AdminToast, type AdminToastPayload } from "@/components/admin/AdminToast";
 import type {
   AboutContent,
   FooterContent,
@@ -47,24 +48,17 @@ export function HomePage({
   masters,
 }: HomePageProps) {
   const [modalOpen, setModalOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<AdminToastPayload | null>(null);
 
   const showSuccess = useCallback(() => {
-    setToast("Запись отправлена");
-    setTimeout(() => setToast(null), 4000);
+    setToast({ message: "Запись отправлена", type: "success", key: Date.now() });
+    setTimeout(() => setToast(null), 5000);
   }, []);
 
   return (
     <div className="relative z-10 min-h-screen">
       <ParallaxBackground imagePath={parallaxBg.imagePath} />
-      {toast && (
-        <div
-          className="fixed left-1/2 top-24 z-[60] -translate-x-1/2 rounded-xl bg-[var(--accent)] px-6 py-3 text-center font-medium text-black shadow-lg"
-          role="status"
-        >
-          {toast}
-        </div>
-      )}
+      <AdminToast toast={toast} />
       <Header
         onBookClick={() => setModalOpen(true)}
         logoPath={header.logoPath}

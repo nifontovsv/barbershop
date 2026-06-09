@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 import { randomBytes } from "crypto";
-import { requireAdminSession } from "@/lib/requireAdmin";
+import { requireTabSession } from "@/lib/requireAdmin";
 
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -16,8 +16,8 @@ function extForMime(mime: string): string {
 }
 
 export async function POST(request: Request) {
-  const deny = await requireAdminSession();
-  if (deny) return deny;
+  const auth = await requireTabSession("content");
+  if (!auth.ok) return auth.response;
   const form = await request.formData();
   const file = form.get("file");
   const subdirRaw = form.get("subdir");

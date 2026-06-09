@@ -9,7 +9,8 @@ export function createBooking(
   slotId: string,
   clientName: string,
   clientPhone: string,
-  comment?: string
+  comment?: string,
+  clientEmail?: string | null
 ): Booking | null {
   const booking = dbCreateBooking(
     masterId,
@@ -17,7 +18,8 @@ export function createBooking(
     slotId,
     clientName,
     clientPhone,
-    comment
+    comment,
+    clientEmail
   );
   if (booking) {
     notifyMaster(booking.masterId, booking).catch((err) =>
