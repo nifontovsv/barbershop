@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useGsapScrollReveal } from '@/hooks/useGsapScrollReveal'
 
 const ADDRESS = 'ул. Мансура Хасанова, 15, Казань'
 const YANDEX_MAPS_PAGE_URL =
@@ -11,15 +12,26 @@ const YANDEX_MAPS_EMBED_URL =
 
 export function MapSection() {
 	const [mapInteractive, setMapInteractive] = useState(false)
+	const sectionRef = useRef<HTMLElement>(null)
+
+	useGsapScrollReveal(sectionRef, [
+		{ targets: "[data-reveal='info']", y: 24, duration: 0.55 },
+		{ targets: "[data-reveal='map']", y: 36, duration: 0.7, delay: 0.15 },
+	])
 
 	return (
 		<section
+			id='contacts'
+			ref={sectionRef}
 			aria-label='Карта и адрес'
 			className='relative left-1/2 right-1/2 -mx-[50vw] w-screen border-y border-[var(--surface)] bg-transparent'
 		>
 			<div className='container-landing py-6 sm:py-10'>
 				<div className='mx-auto max-w-5xl'>
-					<div className='flex flex-col items-center justify-between gap-4 rounded-2xl bg-[var(--bg)]/55 px-4 py-5 shadow-xl sm:flex-row sm:px-8'>
+					<div
+						data-reveal='info'
+						className='flex flex-col items-center justify-between gap-4 rounded-2xl bg-[var(--bg)]/55 px-4 py-5 shadow-xl sm:flex-row sm:px-8'
+					>
 						<div className='text-center sm:text-left'>
 							<h2 className='text-xl font-semibold text-[var(--text)] sm:text-2xl'>
 								Где мы находимся
@@ -39,7 +51,7 @@ export function MapSection() {
 						</a>
 					</div>
 
-					<div className='mt-6 overflow-hidden rounded-2xl bg-[var(--surface)] shadow-xl'>
+					<div data-reveal='map' className='mt-6 overflow-hidden rounded-2xl bg-[var(--surface)] shadow-xl'>
 						<div
 							className='relative aspect-[16/10] w-full sm:aspect-[21/9]'
 							onMouseLeave={() => setMapInteractive(false)}

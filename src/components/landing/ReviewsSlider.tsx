@@ -1,10 +1,9 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
-import gsap from 'gsap'
-import { ScrollTrigger } from 'gsap/ScrollTrigger'
-
-gsap.registerPlugin(ScrollTrigger)
+import { useRef } from 'react'
+import { useGsapScrollReveal } from '@/hooks/useGsapScrollReveal'
+import { usePassVerticalWheel } from '@/hooks/usePassVerticalWheel'
+import { useSplitTextReveal } from '@/hooks/useSplitTextReveal'
 
 const REVIEWS_2GIS = 'https://2gis.ru/kazan/firm/70000001095119622'
 const REVIEWS_YANDEX =
@@ -854,16 +853,19 @@ const REVIEWS: Review[] = [
 	},
 ]
 
-const CARD_MIN_WIDTH = 320
+const CARD_MIN_WIDTH = 380
 const CARD_GAP = 16
 const STEP_SCROLL = CARD_MIN_WIDTH + CARD_GAP
 
 function ReviewCard({ review }: { review: Review }) {
 	return (
-		<article className='flex min-h-[260px] min-w-[calc(100vw-4rem)] max-w-[calc(100vw-4rem)] flex-shrink-0 snap-start rounded-2xl border border-[var(--surface)] bg-[var(--bg-content)] p-5 md:min-h-[220px] md:min-w-[320px] md:max-w-[320px] md:p-6'>
-			<div className='flex min-h-0 flex-1 flex-col'>
+		<article
+			data-reveal='card'
+			className='flex h-[360px] min-w-[calc(100vw-3rem)] max-w-[calc(100vw-3rem)] flex-shrink-0 snap-start rounded-2xl border border-[var(--surface)] bg-[var(--bg-content)] p-5 md:h-[340px] md:min-w-[380px] md:max-w-[380px] md:p-6'
+		>
+			<div className='flex min-h-0 w-full flex-1 flex-col'>
 				{/* Верхняя строка: имя слева, звёзды справа */}
-				<div className='mb-3 flex items-start justify-between gap-2'>
+				<div className='mb-3 flex flex-shrink-0 items-start justify-between gap-2'>
 					<span
 						className='truncate font-medium text-[var(--text)]'
 						title={review.name}
@@ -877,8 +879,10 @@ function ReviewCard({ review }: { review: Review }) {
 						{'★'.repeat(review.rating ?? 5)}
 					</span>
 				</div>
-				{/* Текст отзыва — фиксированная высота (как 5 строк), скролл при длинном тексте */}
-				<div className='scrollbar-theme max-h-[9rem] overflow-y-auto pr-1 md:max-h-[7.5rem]'>
+				<div
+					data-review-text
+					className='scrollbar-theme min-h-0 flex-1 overflow-y-auto overscroll-y-contain pr-1'
+				>
 					<p className='text-sm leading-relaxed text-[var(--text)] md:text-base'>
 						«{review.text}»
 					</p>
@@ -915,31 +919,23 @@ export function ReviewsSlider() {
 		el.scrollBy({ left: delta, behavior: 'smooth' })
 	}
 
-	useEffect(() => {
-		const section = sectionRef.current
-		if (!section) return
-		const ctx = gsap.context(() => {
-			gsap.fromTo(
-				section.querySelector('h2'),
-				{ opacity: 0, y: 16 },
-				{
-					opacity: 1,
-					y: 0,
-					duration: 0.5,
-					scrollTrigger: { trigger: section, start: 'top 85%' },
-				}
-			)
-		}, section)
-		return () => ctx.revert()
-	}, [])
+	useSplitTextReveal(sectionRef)
+	usePassVerticalWheel(sectionRef, '[data-review-text]')
+	useGsapScrollReveal(sectionRef, [
+		{ targets: "[data-reveal='subtitle']", y: 16, duration: 0.5, delay: 0.12 },
+		{ targets: "[data-reveal='card']", y: 32, x: 20, stagger: 0.08, delay: 0.15 },
+	])
 
 	return (
-		<section ref={sectionRef} className='scroll-section'>
+		<section id='reviews' ref={sectionRef} className='scroll-section'>
 			<div className='mx-auto max-w-2xl rounded-2xl bg-[var(--bg)]/90 px-4 py-6 shadow-xl backdrop-blur-sm'>
-				<h2 className='section-title'>
+				<h2 className='section-title' data-split-text>
 					Отзывы клиентов
 				</h2>
-				<p className='mx-auto mt-2 max-w-xl text-center text-sm text-[var(--text-muted)]'>
+				<p
+					data-reveal='subtitle'
+					className='mx-auto mt-2 max-w-xl text-center text-sm text-[var(--text-muted)]'
+				>
 					Нас рекомендуют на 2ГИС и Яндекс.Картах
 				</p>
 			</div>
@@ -988,7 +984,7 @@ export function ReviewsSlider() {
 				</button>
 				<div
 					ref={scrollRef}
-					className='scrollbar-theme flex gap-4 overflow-x-auto pb-2 scroll-smooth md:px-2'
+					className='horizontal-scroll flex items-stretch gap-4 overflow-x-auto overflow-y-hidden pb-2 scroll-smooth md:px-2'
 					style={{
 						scrollSnapType: 'x mandatory',
 						WebkitOverflowScrolling: 'touch',

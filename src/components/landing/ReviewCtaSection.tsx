@@ -1,18 +1,33 @@
 'use client'
 
+import { useRef } from 'react'
+import { useGsapScrollReveal } from '@/hooks/useGsapScrollReveal'
+import { useSplitLinesReveal } from '@/hooks/useSplitLinesReveal'
+
 const URL_2GIS = 'https://2gis.ru/kazan/firm/70000001095119622'
 const URL_YANDEX_MAPS =
 	'https://yandex.ru/maps/org/muzhskaya_parikmakherskaya/74689483204/?ll=49.184657%2C55.778892&z=17'
 
 export function ReviewCtaSection() {
+	const sectionRef = useRef<HTMLElement>(null)
+
+	useSplitLinesReveal(sectionRef)
+	useGsapScrollReveal(sectionRef, [
+		{ targets: "[data-reveal='btn']", y: 16, stagger: 0.1, delay: 0.12 },
+	])
+
 	return (
-		<section>
+		<section ref={sectionRef}>
 			<div className='rounded-2xl bg-[var(--bg)]/55 px-4 py-5 shadow-xl sm:px-8 sm:py-7'>
-				<h2 className='text-center text-lg font-semibold text-[var(--text)] sm:text-xl'>
+				<h2
+					data-split-lines
+					className='text-center text-lg font-semibold text-[var(--text)] sm:text-xl'
+				>
 					Понравились наши услуги? Оставьте отзыв на 2ГИС и Яндекс.Картах
 				</h2>
 				<div className='mt-4 flex flex-wrap items-center justify-center gap-4'>
 					<a
+						data-reveal='btn'
 						href={URL_2GIS}
 						target='_blank'
 						rel='noopener noreferrer'
@@ -22,6 +37,7 @@ export function ReviewCtaSection() {
 						2ГИС
 					</a>
 					<a
+						data-reveal='btn'
 						href={URL_YANDEX_MAPS}
 						target='_blank'
 						rel='noopener noreferrer'

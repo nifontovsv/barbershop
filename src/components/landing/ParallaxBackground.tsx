@@ -1,11 +1,8 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { gsap, ScrollTrigger } from "@/lib/gsapSetup";
 import { asset } from "@/lib/basePath";
-
-gsap.registerPlugin(ScrollTrigger);
 
 const DEFAULT_BG = "/images/parallax/parallax-bikes.jpg";
 

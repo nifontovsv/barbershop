@@ -64,6 +64,59 @@ body {
   padding-right: var(--container-px);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  [data-reveal],
+  [data-gallery-item],
+  [data-split-text],
+  [data-split-lines],
+  [data-section-reveal] {
+    visibility: hidden;
+  }
+}
+
+.header-bar {
+  --header-blur: 8px;
+  --header-bg-opacity: 0.95;
+}
+
+.header-bar.header--scrolled {
+  border-color: rgba(37, 37, 37, 0.8);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+.header-bar.header--scrolled > .container-landing {
+  height: 3.5rem;
+}
+
+@media (min-width: 640px) {
+  .header-bar.header--scrolled > .container-landing {
+    height: 4rem;
+  }
+}
+
+.header-bar.header--scrolled .header-bar__logo {
+  transform: scale(0.92);
+}
+
+.header-bar.header--scrolled .header-bar__title {
+  font-size: 0.95rem;
+}
+
+.split-word {
+  display: inline-block;
+  will-change: transform, opacity;
+}
+
+.horizontal-scroll {
+  overscroll-behavior-x: contain;
+  overscroll-behavior-y: none;
+}
+
+.split-line {
+  display: block;
+  will-change: transform;
+}
+
 @layer components {
   .section-title {
     @apply text-center text-3xl font-semibold leading-tight text-[var(--text)] sm:text-3xl;

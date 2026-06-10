@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import gsap from "gsap";
+import { gsap, prefersReducedMotion } from "@/lib/gsapSetup";
 import type { Service, ServiceCategory, Master, TimeSlot } from "@/types/booking";
 import { ServiceStep } from "./ServiceStep";
 import { MasterStep } from "./MasterStep";
@@ -40,6 +40,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const stepContentRef = useRef<HTMLDivElement>(null);
   const [exiting, setExiting] = useState(false);
   /** Сбросить шаг и выбор после успешной записи, когда модалка уже закрыта (без мигания UI). */
   const pendingResetAfterCloseRef = useRef(false);
@@ -159,9 +160,32 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
     loadSlots(selectedMaster.id, selectedDate);
   }, [selectedMaster, selectedDate, loadSlots]);
 
+  const animateStepChange = useCallback((next: StepId, direction: "forward" | "back") => {
+    const el = stepContentRef.current;
+    if (!el || prefersReducedMotion()) {
+      setStep(next);
+      return;
+    }
+
+    gsap.to(el, {
+      x: direction === "forward" ? -36 : 36,
+      autoAlpha: 0,
+      duration: 0.2,
+      ease: "power2.in",
+      onComplete: () => {
+        setStep(next);
+        gsap.fromTo(
+          el,
+          { x: direction === "forward" ? 36 : -36, autoAlpha: 0 },
+          { x: 0, autoAlpha: 1, duration: 0.3, ease: "power2.out" }
+        );
+      },
+    });
+  }, []);
+
   const goBack = () => {
     const idx = STEPS.indexOf(step);
-    if (idx > 0) setStep(STEPS[idx - 1]);
+    if (idx > 0) animateStepChange(STEPS[idx - 1], "back");
   };
 
   const handleToggleService = (s: Service) => {
@@ -175,7 +199,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
       setSelectedMaster(null);
       setSelectedDate(null);
       setSelectedSlot(null);
-      setStep("master");
+      animateStepChange("master", "forward");
     }
   };
 
@@ -183,7 +207,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
     setSelectedMaster(m);
     setSelectedDate(null);
     setSelectedSlot(null);
-    setStep("date");
+    animateStepChange("date", "forward");
   };
 
   const handleSelectDate = (dateStr: string) => {
@@ -287,7 +311,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
           )}
         </div>
 
-        <div className="scrollbar-theme min-h-0 flex-1 overflow-y-auto p-6 pt-4">
+        <div ref={stepContentRef} className="scrollbar-theme min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-6 pt-4">
           {step === "service" && (
             <ServiceStep
               categories={serviceCategories}
@@ -317,7 +341,7 @@ export function BookingModal({ isOpen, onClose, onSuccess }: BookingModalProps) 
                 <div className="mt-4">
                   <button
                     type="button"
-                    onClick={() => setStep("form")}
+                    onClick={() => animateStepChange("form", "forward")}
                     className="w-full cursor-pointer rounded-xl bg-[var(--accent)] px-4 py-3 font-semibold text-black"
                   >
                     Далее →

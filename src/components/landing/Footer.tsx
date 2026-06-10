@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { gsap, ScrollTrigger, prefersReducedMotion } from "@/lib/gsapSetup";
 
 const DEFAULT_BRAND = "Мужская Парикмахерская";
 const DEFAULT_ADDRESS = "ул. Мансура Хасанова, 15, Казань";
@@ -77,17 +79,45 @@ export function Footer({
   const vk = vkUrl ?? DEFAULT_VK;
   const gis = url2gis ?? DEFAULT_2GIS;
   const yandex = urlYandexMaps ?? DEFAULT_YANDEX;
+  const footerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const footer = footerRef.current;
+    if (!footer || prefersReducedMotion()) return;
+
+    const blocks = footer.querySelectorAll("[data-footer-block]");
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        blocks,
+        { opacity: 0, y: 16 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.5,
+          stagger: 0.1,
+          ease: "power2.out",
+          scrollTrigger: {
+            trigger: footer,
+            start: "top 95%",
+            once: true,
+          },
+        }
+      );
+    }, footer);
+
+    return () => ctx.revert();
+  }, []);
 
   return (
-    <footer className="border-t border-[var(--surface)] bg-[var(--bg)]/85 py-6">
+    <footer ref={footerRef} className="border-t border-[var(--surface)] bg-[var(--bg)]/85 py-6">
       <div className="container-landing">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:items-end">
-          <div className="text-center sm:text-left">
+          <div data-footer-block className="text-center sm:text-left">
             <div className="text-sm font-medium text-white/90">{brand}</div>
             <div className="mt-1 text-sm text-white/70">{addr}</div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div data-footer-block className="flex items-center gap-2">
             <a
               href={vk}
               target="_blank"
@@ -121,7 +151,10 @@ export function Footer({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-white/60 sm:justify-between">
+        <div
+          data-footer-block
+          className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-xs text-white/60 sm:justify-between"
+        >
           <span>
             © {new Date().getFullYear()} {brand}
           </span>
